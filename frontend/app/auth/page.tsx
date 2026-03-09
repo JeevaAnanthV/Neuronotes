@@ -9,16 +9,17 @@ export default function AuthPage() {
     const [sent, setSent] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const supabase = createBrowserClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-    );
-
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         if (!email.trim()) return;
         setLoading(true);
         setError(null);
+
+        // Create client inside handler — only runs client-side, never during SSR prerender
+        const supabase = createBrowserClient(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        );
 
         const { error } = await supabase.auth.signInWithOtp({
             email: email.trim(),

@@ -29,10 +29,7 @@ jobs:
         run: |
           cd backend
           pytest tests/ -v --tb=short
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+        # Tests are fully mocked — no external credentials required
 
   frontend-check:
     name: Frontend Type Check & Lint

@@ -95,7 +95,7 @@ Supabase (PostgreSQL 16 + pgvector)
 ### 1. Clone
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/neuronotes.git
+git clone https://github.com/JeevaAnanthV/Neuronotes.git
 cd neuronotes
 ```
 
@@ -208,7 +208,15 @@ See `.github/workflows/ci.yml`.
 
 ## Screenshots
 
-> Screenshots pending deployment — see live demo above.
+| Dashboard | Editor | Knowledge Graph |
+|-----------|--------|----------------|
+| Note list with AI insights, quick search, and analytics summary | TipTap rich editor with ghost AI suggestions, slash commands, and selection toolbar | Interactive React Flow graph with semantic edges and tag filtering |
+
+| Flashcards | AI Chat | Topic Clusters |
+|-----------|---------|----------------|
+| SM-2 spaced repetition study mode with Again/Hard/Good/Easy ratings | RAG-powered chat grounded in your notes with source citations | Visual card grid grouping notes by AI-detected topic |
+
+> Clone and run locally — the full stack is up in under 5 minutes with the Quick Start guide above.
 
 ---
 

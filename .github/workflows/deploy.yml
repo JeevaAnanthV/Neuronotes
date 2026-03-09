@@ -4,22 +4,53 @@ on:
   push:
     branches: [main]
 
+# To enable deployment, add these secrets to your GitHub repo:
+#   VERCEL_TOKEN        — Vercel API token
+#   VERCEL_ORG_ID       — Vercel team/org ID
+#   VERCEL_PROJECT_ID   — Vercel project ID
+#   RAILWAY_TOKEN       — Railway API token
+
 jobs:
-  deploy:
-    name: Deploy to Production
+  deploy-frontend:
+    name: Deploy Frontend (Vercel)
     runs-on: ubuntu-latest
-    environment: production
+    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
     steps:
       - uses: actions/checkout@v4
 
-      - name: Deploy Backend
-        run: echo "Deploy backend to Railway/Render"
-        # Example for Railway:
-        # run: railway up --service backend
-        # env:
-        #   RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
 
-      - name: Deploy Frontend
-        run: echo "Deploy frontend to Vercel"
-        # Example for Vercel:
-        # run: vercel --prod --token ${{ secrets.VERCEL_TOKEN }}
+      - name: Install Vercel CLI
+        run: npm install -g vercel
+
+      - name: Pull Vercel environment
+        run: vercel pull --yes --environment=production --token=${{ secrets.VERCEL_TOKEN }}
+        working-directory: frontend
+
+      - name: Build frontend
+        run: vercel build --prod --token=${{ secrets.VERCEL_TOKEN }}
+        working-directory: frontend
+
+      - name: Deploy to Vercel
+        run: vercel deploy --prebuilt --prod --token=${{ secrets.VERCEL_TOKEN }}
+        working-directory: frontend
+
+  deploy-backend:
+    name: Deploy Backend (Railway)
+    runs-on: ubuntu-latest
+    if: ${{ vars.DEPLOY_ENABLED == 'true' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Railway CLI
+        run: npm install -g @railway/cli
+
+      - name: Deploy to Railway
+        run: railway up --service neuronotes-backend
+        working-directory: backend
+        env:
+          RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}

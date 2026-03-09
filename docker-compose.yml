@@ -1,45 +1,20 @@
 version: "3.9"
 
-services:
-  postgres:
-    image: pgvector/pgvector:pg16
-    container_name: neuronotes_db
-    restart: unless-stopped
-    environment:
-      POSTGRES_USER: neuronotes
-      POSTGRES_PASSWORD: neuronotes
-      POSTGRES_DB: neuronotes
-    ports:
-      - "5432:5432"
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U neuronotes"]
-      interval: 5s
-      timeout: 5s
-      retries: 5
+# NeuroNotes — Full-stack with Supabase cloud DB
+# Backend uses Supabase HTTPS REST API (no local postgres needed)
+# Set SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, GEMINI_API_KEY in backend/.env
 
+services:
   backend:
     build:
       context: ./backend
       dockerfile: Dockerfile
     container_name: neuronotes_backend
     restart: unless-stopped
-    depends_on:
-      postgres:
-        condition: service_healthy
-    environment:
-      # DATABASE_URL can be overridden from backend/.env or set here.
-      # For local dev (docker postgres): use the local connection string below.
-      # For Supabase: set DATABASE_URL in backend/.env with the Supabase URI.
-      DATABASE_URL: ${DATABASE_URL:-postgresql+asyncpg://neuronotes:neuronotes@postgres:5432/neuronotes}
-      GEMINI_API_KEY: ${GEMINI_API_KEY}
     env_file:
       - ./backend/.env
     ports:
-      - "8000:8000"
-    volumes:
-      - ./backend:/app
+      - "8001:8000"
 
   frontend:
     build:
@@ -50,9 +25,6 @@ services:
     depends_on:
       - backend
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
+      NEXT_PUBLIC_API_URL: http://localhost:8001
     ports:
-      - "3000:3000"
-
-volumes:
-  pgdata:
+      - "2323:3000"

@@ -95,7 +95,7 @@ async def transcribe_audio(audio_bytes: bytes, mime_type: str = "audio/webm") ->
     """Transcribe audio using Gemini multimodal (non-blocking)."""
     def _transcribe():
         response = _client.models.generate_content(
-            model="gemini-2.0-flash",
+            model=settings.chat_model,
             contents=[
                 types.Part.from_bytes(data=audio_bytes, mime_type=mime_type),
                 "Transcribe this audio accurately. Return only the transcription text, nothing else.",

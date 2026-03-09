@@ -94,11 +94,28 @@ export default function FlashcardsPage() {
         setGenerating(true);
         try {
             const notes = await notesApi.list();
+            // Fetch all note details in parallel
+            const detailResults = await Promise.allSettled(
+                notes.slice(0, 10).map(n => notesApi.get(n.id))
+            );
+            const eligible = detailResults
+                .map((r, i) => ({ r, note: notes[i] }))
+                .filter(({ r }) =>
+                    r.status === "fulfilled" &&
+                    r.value.content.replace(/<[^>]*>/g, "").length >= 50
+                ) as { r: PromiseFulfilledResult<{ content: string }>; note: typeof notes[0] }[];
+
+            // Generate flashcards for all eligible notes in parallel
+            const genResults = await Promise.allSettled(
+                eligible.map(({ r, note }) =>
+                    aiApi.flashcards(r.value.content).then(({ flashcards }) => ({ flashcards, note }))
+                )
+            );
+
             const newCards: StudyCard[] = [];
-            for (const note of notes.slice(0, 10)) {
-                const fullNote = await notesApi.get(note.id);
-                if (!fullNote.content || fullNote.content.replace(/<[^>]*>/g, "").length < 50) continue;
-                const { flashcards } = await aiApi.flashcards(fullNote.content);
+            for (const res of genResults) {
+                if (res.status !== "fulfilled") continue;
+                const { flashcards, note } = res.value;
                 for (const card of flashcards) {
                     const hash = hashStr(card.question);
                     localStorage.setItem(`fc-q:${note.id}:${hash}`, card.question);

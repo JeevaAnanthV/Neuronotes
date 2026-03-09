@@ -66,16 +66,16 @@ NeuroNotes is an AI-powered knowledge workspace that transforms your notes into 
 
 ## Quick Links
 
-- **API docs (interactive):** http://localhost:8000/docs (when running locally)
-- **Health check:** http://localhost:8000/health
-- **Frontend:** http://localhost:3000
+- **API docs (interactive):** http://localhost:8001/docs (when running locally)
+- **Health check:** http://localhost:8001/health
+- **Frontend:** http://localhost:2323
 
 ## Tech Stack at a Glance
 
 | Layer | Technology |
 |-------|-----------|
-| Frontend | Next.js 16, React 19, TypeScript, TipTap, React Flow |
-| Backend | FastAPI, Python 3.12, SQLAlchemy async, slowapi |
-| Database | PostgreSQL 16 + pgvector |
-| AI | Google Gemini 2.0 Flash (chat), text-embedding-004 (768-dim vectors) |
-| Infrastructure | Docker Compose, Supabase (cloud option) |
+| Frontend | Next.js 14, React 18, TypeScript, TipTap, React Flow |
+| Backend | FastAPI, Python 3.12, supabase-py, slowapi |
+| Database | Supabase (PostgreSQL 16 + pgvector) |
+| AI | Google Gemini 2.5 Flash (chat), gemini-embedding-001 (768-dim vectors) |
+| Infrastructure | Docker Compose, Supabase Auth |

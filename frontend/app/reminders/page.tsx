@@ -47,22 +47,38 @@ export default function RemindersPage() {
             setLoading(true);
             try {
                 const notes = await notesApi.list();
+                const candidates = notes.slice(0, 15);
+
+                // Fetch all note details in parallel
+                const detailResults = await Promise.allSettled(
+                    candidates.map(n => notesApi.get(n.id))
+                );
+
+                // Extract actions in parallel for notes with enough content
+                const actionJobs = detailResults
+                    .map((r, i) => ({ r, note: candidates[i] }))
+                    .filter(({ r }) => {
+                        if (r.status !== "fulfilled") return false;
+                        return r.value.content.replace(/<[^>]*>/g, "").length >= 30;
+                    })
+                    .map(({ r, note }) =>
+                        aiApi.extractActions((r as PromiseFulfilledResult<{ content: string }>).value.content, note.id)
+                            .then(({ actions: extracted }) => ({ extracted, note }))
+                    );
+
+                const actionResults = await Promise.allSettled(actionJobs);
                 const allActions: ActionItem[] = [];
-                for (const note of notes.slice(0, 15)) {
-                    try {
-                        const full = await notesApi.get(note.id);
-                        const plainText = full.content.replace(/<[^>]*>/g, "");
-                        if (plainText.length < 30) continue;
-                        const { actions: extracted } = await aiApi.extractActions(full.content, note.id);
-                        for (const a of extracted) {
-                            allActions.push({
-                                ...a,
-                                noteId: note.id,
-                                noteTitle: note.title,
-                                key: `${note.id}:${a.task.slice(0, 40)}`,
-                            });
-                        }
-                    } catch { /* ignore individual note errors */ }
+                for (const res of actionResults) {
+                    if (res.status !== "fulfilled") continue;
+                    const { extracted, note } = res.value;
+                    for (const a of extracted) {
+                        allActions.push({
+                            ...a,
+                            noteId: note.id,
+                            noteTitle: note.title,
+                            key: `${note.id}:${a.task.slice(0, 40)}`,
+                        });
+                    }
                 }
                 allActions.sort((a, b) => priorityOrder(a.priority) - priorityOrder(b.priority));
                 setActions(allActions);

@@ -4,7 +4,7 @@ from functools import lru_cache
 
 class Settings(BaseSettings):
     # Supabase (HTTPS REST — replaces direct TCP postgres connection)
-    supabase_url: str = "https://mcyppfjrftbczgpuwouu.supabase.co"
+    supabase_url: str = ""
     supabase_service_role_key: str = ""
 
     gemini_api_key: str = ""

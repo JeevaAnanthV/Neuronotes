@@ -60,7 +60,7 @@ export default function QAPage() {
         <div style={{ display: "flex", height: "100%", overflow: "hidden" }}>
             {/* Left: note selection */}
             <div style={{
-                width: "260px",
+                width: "clamp(180px, 28vw, 260px)",
                 flexShrink: 0,
                 borderRight: "1px solid var(--border)",
                 display: "flex",

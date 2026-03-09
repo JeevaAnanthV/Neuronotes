@@ -143,7 +143,7 @@ export default function DashboardPage() {
             {/* 3-card grid */}
             <div style={{
                 display: "grid",
-                gridTemplateColumns: "repeat(3, 1fr)",
+                gridTemplateColumns: "repeat(auto-fit, minmax(240px, 1fr))",
                 gap: "16px",
                 marginBottom: "32px",
             }}>

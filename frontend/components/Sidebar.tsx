@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
 import { notesApi, type NoteListItem } from "@/lib/api";
 import { CommandPalette } from "@/components/CommandPalette";
+import { TemplateSelector, type Template } from "@/components/TemplateSelector";
 import {
     FileText,
     Tag,
@@ -18,6 +19,10 @@ import {
     Lightbulb,
     Menu,
     X,
+    Bell,
+    Layers,
+    BookOpen,
+    HelpCircle,
 } from "lucide-react";
 
 const NAV = [
@@ -26,6 +31,10 @@ const NAV = [
     { label: "Graph", icon: GitBranch, href: "/graph", shortcut: null },
     { label: "AI Chat", icon: MessageSquare, href: "/chat", shortcut: null },
     { label: "Insights", icon: Lightbulb, href: "/insights", shortcut: null },
+    { label: "Flashcards", icon: Brain, href: "/flashcards", shortcut: null },
+    { label: "Q&A", icon: HelpCircle, href: "/qa", shortcut: null },
+    { label: "Reminders", icon: Bell, href: "/reminders", shortcut: null },
+    { label: "Topics", icon: Layers, href: "/clusters", shortcut: null },
 ];
 
 function timeAgo(dateStr: string) {
@@ -45,6 +54,7 @@ export function Sidebar() {
     const [creating, setCreating] = useState(false);
     const [collapsed, setCollapsed] = useState(false);
     const [mobileOpen, setMobileOpen] = useState(false);
+    const [templateOpen, setTemplateOpen] = useState(false);
 
     const loadNotes = useCallback(async () => {
         try {
@@ -83,11 +93,16 @@ export function Sidebar() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
-    const handleNewNote = async () => {
+    const handleNewNote = () => {
+        setTemplateOpen(true);
+    };
+
+    const handleTemplateSelect = async (template: Template) => {
+        setTemplateOpen(false);
         if (creating) return;
         setCreating(true);
         try {
-            const note = await notesApi.create("Untitled", "");
+            const note = await notesApi.create("Untitled", template.content);
             await loadNotes();
             router.push(`/notes/${note.id}`);
             setMobileOpen(false);
@@ -309,6 +324,12 @@ export function Sidebar() {
             )}
 
             {paletteOpen && <CommandPalette onClose={() => setPaletteOpen(false)} />}
+            {templateOpen && (
+                <TemplateSelector
+                    onSelect={handleTemplateSelect}
+                    onClose={() => setTemplateOpen(false)}
+                />
+            )}
         </>
     );
 }

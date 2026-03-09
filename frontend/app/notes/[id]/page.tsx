@@ -7,6 +7,8 @@ import { Editor } from "@/components/Editor";
 import { ContextPanel } from "@/components/ContextPanel";
 import { DailyInsights } from "@/components/DailyInsights";
 import { VoiceRecorder } from "@/components/VoiceRecorder";
+import { CollaborativeIndicator } from "@/components/CollaborativeIndicator";
+import { createClient } from "@/lib/supabase";
 import { Check, Loader2, Trash2, Cloud, Save } from "lucide-react";
 
 const AUTOSAVE_DELAY = 1500;
@@ -28,6 +30,7 @@ export default function NotePage() {
     const [saved, setSaved] = useState(true);
     const [loading, setLoading] = useState(true);
     const [showInsights, setShowInsights] = useState(true);
+    const [realtimeToast, setRealtimeToast] = useState(false);
     const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
     useEffect(() => {
@@ -40,6 +43,23 @@ export default function NotePage() {
             router.push("/");
         }).finally(() => setLoading(false));
     }, [id, router]);
+
+    // Supabase Realtime — notify when another user updates this note
+    useEffect(() => {
+        const supabase = createClient();
+        const channel = supabase
+            .channel(`note:${id}`)
+            .on(
+                "postgres_changes",
+                { event: "UPDATE", schema: "public", table: "notes", filter: `id=eq.${id}` },
+                () => {
+                    setRealtimeToast(true);
+                    setTimeout(() => setRealtimeToast(false), 8000);
+                }
+            )
+            .subscribe();
+        return () => { supabase.removeChannel(channel); };
+    }, [id]);
 
     const save = useCallback(
         async (newTitle: string, newContent: string) => {
@@ -182,6 +202,48 @@ export default function NotePage() {
     return (
         <>
             <div className="editor-shell">
+                {/* Realtime toast */}
+                {realtimeToast && (
+                    <div style={{
+                        position: "fixed",
+                        top: "16px",
+                        right: "24px",
+                        zIndex: 9999,
+                        background: "var(--bg-elevated)",
+                        border: "1px solid var(--accent-primary)",
+                        borderRadius: "var(--radius-md)",
+                        padding: "10px 16px",
+                        fontSize: "13px",
+                        color: "var(--text-primary)",
+                        boxShadow: "var(--shadow-md)",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "10px",
+                    }}>
+                        <span>Note updated by another user</span>
+                        <button
+                            onClick={() => window.location.reload()}
+                            style={{
+                                background: "var(--accent-primary)",
+                                color: "white",
+                                border: "none",
+                                borderRadius: "6px",
+                                padding: "3px 10px",
+                                fontSize: "12px",
+                                cursor: "pointer",
+                            }}
+                        >
+                            Refresh
+                        </button>
+                        <button
+                            onClick={() => setRealtimeToast(false)}
+                            style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", fontSize: "16px", lineHeight: 1 }}
+                        >
+                            ×
+                        </button>
+                    </div>
+                )}
+
                 {/* Top bar */}
                 <div className="editor-topbar">
                     <input
@@ -193,6 +255,7 @@ export default function NotePage() {
                         id="note-title-input"
                     />
                     <div style={{ display: "flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+                        <CollaborativeIndicator noteId={id} />
                         {/* Autosave indicator */}
                         <div className="autosave-indicator" style={{ color: saveColor }}>
                             {saving ? (

@@ -4,7 +4,7 @@ import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
 import { useState, useCallback, useRef, useEffect } from "react";
-import { aiApi } from "@/lib/api";
+import { aiApi, api } from "@/lib/api";
 import {
     Sparkles,
     FileText,
@@ -185,8 +185,10 @@ export function Editor({ content, onChange, onSlashCommand }: Props) {
     const [toolbar, setToolbar] = useState<{ text: string; pos: { x: number; y: number } } | null>(null);
     const [slashMenu, setSlashMenu] = useState<{ pos: { x: number; y: number } } | null>(null);
     const [showAiHint, setShowAiHint] = useState(false);
+    const [ghostSuggestion, setGhostSuggestion] = useState<string | null>(null);
     const editorRef = useRef<HTMLDivElement>(null);
     const hintTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+    const coachTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
     const editor = useEditor({
         immediatelyRender: false,
@@ -203,6 +205,19 @@ export function Editor({ content, onChange, onSlashCommand }: Props) {
             const text = editor.getText();
             if (text.length > 30) {
                 hintTimerRef.current = setTimeout(() => setShowAiHint(true), 3000);
+            }
+            // Writing coach: after 2s pause with 50+ chars in paragraph
+            clearTimeout(coachTimerRef.current);
+            setGhostSuggestion(null);
+            const { $from } = editor.state.selection;
+            const paragraphText = $from.parent.textContent || "";
+            if (paragraphText.length >= 50) {
+                coachTimerRef.current = setTimeout(async () => {
+                    try {
+                        const res = await api.post<{ suggestion: string }>("/ai/writing-coach", { text: paragraphText });
+                        if (res.data?.suggestion) setGhostSuggestion(res.data.suggestion);
+                    } catch { /* ignore */ }
+                }, 2000);
             }
         },
         onSelectionUpdate: ({ editor }) => {
@@ -235,6 +250,22 @@ export function Editor({ content, onChange, onSlashCommand }: Props) {
                         }
                     }, 10);
                 }
+                // Accept ghost suggestion with Tab
+                if (event.key === "Tab") {
+                    setGhostSuggestion((current) => {
+                        if (current) {
+                            event.preventDefault();
+                            view.dispatch(view.state.tr.insertText(" " + current));
+                            return null;
+                        }
+                        return current;
+                    });
+                    return false;
+                }
+                // Dismiss ghost suggestion with Escape
+                if (event.key === "Escape") {
+                    setGhostSuggestion(null);
+                }
                 // Hide AI hint on typing
                 setShowAiHint(false);
                 return false;
@@ -243,7 +274,10 @@ export function Editor({ content, onChange, onSlashCommand }: Props) {
     });
 
     useEffect(() => {
-        return () => clearTimeout(hintTimerRef.current);
+        return () => {
+            clearTimeout(hintTimerRef.current);
+            clearTimeout(coachTimerRef.current);
+        };
     }, []);
 
     const applyAIResult = useCallback(
@@ -270,6 +304,32 @@ export function Editor({ content, onChange, onSlashCommand }: Props) {
     return (
         <div ref={editorRef} style={{ position: "relative" }}>
             <EditorContent editor={editor} />
+            {ghostSuggestion && (
+                <div style={{
+                    marginTop: "2px",
+                    padding: "4px 8px",
+                    fontSize: "13px",
+                    color: "var(--text-muted)",
+                    fontStyle: "italic",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "8px",
+                    opacity: 0.75,
+                }}>
+                    <span style={{
+                        fontSize: "9px",
+                        background: "var(--accent-primary)",
+                        color: "white",
+                        padding: "1px 5px",
+                        borderRadius: "4px",
+                        fontStyle: "normal",
+                        fontWeight: 600,
+                        letterSpacing: "0.04em",
+                    }}>AI</span>
+                    <span>{ghostSuggestion}</span>
+                    <span style={{ fontSize: "11px", color: "var(--text-muted)", fontStyle: "normal" }}>Tab to accept · Esc to dismiss</span>
+                </div>
+            )}
             {showAiHint && (
                 <div className="ai-hint">
                     <Sparkles size={11} />

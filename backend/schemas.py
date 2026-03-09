@@ -107,6 +107,7 @@ class ChatMessage(BaseModel):
 
 class ChatRequest(BaseModel):
     messages: list[ChatMessage]
+    note_ids: Optional[list[str]] = None
 
 class ChatResponse(BaseModel):
     reply: str
@@ -115,6 +116,9 @@ class ChatResponse(BaseModel):
 class WritingAssistRequest(BaseModel):
     text: str
     action: str  # "improve" | "summarize" | "expand" | "bullet" | "explain"
+
+class WritingCoachRequest(BaseModel):
+    text: str
 
 class WritingAssistResponse(BaseModel):
     result: str

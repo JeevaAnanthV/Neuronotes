@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { aiApi, notesApi, searchApi, type NoteListItem, type Flashcard, type InsightsData } from "@/lib/api";
 import { FlashcardViewer } from "./FlashcardViewer";
 import {
@@ -12,7 +12,17 @@ import {
     ChevronDown,
     Zap,
     X,
+    Bell,
+    Calendar,
+    Circle,
+    CheckCircle2,
 } from "lucide-react";
+
+interface ActionItem {
+    task: string;
+    due_hint: string | null;
+    priority: "high" | "medium" | "low";
+}
 
 interface Props {
     noteId: string;
@@ -70,6 +80,10 @@ export function ContextPanel({ noteId, content, onTagsGenerated }: Props) {
     const [gaps, setGaps] = useState<string[]>([]);
     const [gapSuggestion, setGapSuggestion] = useState("");
     const [linkSuggestions, setLinkSuggestions] = useState<NoteListItem[]>([]);
+    const [actions, setActions] = useState<ActionItem[]>([]);
+    const [doneTasks, setDoneTasks] = useState<Set<string>>(new Set());
+    const actionTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+    const lastContentRef = useRef<string>("");
 
     // Load existing tags for this note on mount
     useEffect(() => {
@@ -107,6 +121,23 @@ export function ContextPanel({ noteId, content, onTagsGenerated }: Props) {
             .then((data) => setLinkSuggestions(data.suggestions))
             .catch(() => { });
     }, [noteId]);
+
+    // Extract action items (debounced, only when content changes significantly)
+    useEffect(() => {
+        const plainText = content.replace(/<[^>]*>/g, "");
+        if (plainText.length < 50) return;
+        const changed = Math.abs(plainText.length - lastContentRef.current.length) > 80;
+        if (!changed) return;
+        clearTimeout(actionTimerRef.current);
+        actionTimerRef.current = setTimeout(async () => {
+            lastContentRef.current = plainText;
+            try {
+                const { actions: extracted } = await aiApi.extractActions(content, noteId);
+                setActions(extracted);
+            } catch { /* ignore */ }
+        }, 3000);
+        return () => clearTimeout(actionTimerRef.current);
+    }, [content, noteId]);
 
     const handleAddTagManually = async () => {
         const name = tagInput.trim().toLowerCase().replace(/\s+/g, "-");
@@ -456,6 +487,52 @@ export function ContextPanel({ noteId, content, onTagsGenerated }: Props) {
                                 </div>
                             </a>
                         ))}
+                    </div>
+                </Section>
+            )}
+
+            {/* Action Items */}
+            {actions.length > 0 && (
+                <Section title={`Action Items (${actions.length})`} icon={<Bell size={12} />} defaultOpen={true}>
+                    <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                        {actions.map((a, i) => {
+                            const key = `${noteId}:${a.task.slice(0, 40)}`;
+                            const isDone = doneTasks.has(key);
+                            return (
+                                <div key={i} style={{ display: "flex", alignItems: "flex-start", gap: "8px" }}>
+                                    <button
+                                        onClick={() => {
+                                            setDoneTasks(prev => {
+                                                const next = new Set(prev);
+                                                if (next.has(key)) next.delete(key); else next.add(key);
+                                                return next;
+                                            });
+                                        }}
+                                        style={{ background: "none", border: "none", cursor: "pointer", color: isDone ? "var(--success)" : "var(--text-muted)", padding: "1px", flexShrink: 0, marginTop: "1px" }}
+                                    >
+                                        {isDone ? <CheckCircle2 size={13} /> : <Circle size={13} />}
+                                    </button>
+                                    <div style={{ flex: 1 }}>
+                                        <div style={{ fontSize: "12.5px", color: isDone ? "var(--text-muted)" : "var(--text-primary)", textDecoration: isDone ? "line-through" : "none", lineHeight: 1.4 }}>
+                                            {a.task}
+                                        </div>
+                                        {a.due_hint && (
+                                            <div style={{ fontSize: "11px", color: "var(--text-muted)", marginTop: "2px" }}>{a.due_hint}</div>
+                                        )}
+                                    </div>
+                                    <button
+                                        onClick={() => {
+                                            const text = encodeURIComponent(a.task);
+                                            window.open(`https://calendar.google.com/calendar/r/eventedit?text=${text}`, "_blank");
+                                        }}
+                                        title="Add to Google Calendar"
+                                        style={{ background: "none", border: "none", cursor: "pointer", color: "var(--text-muted)", padding: "1px", flexShrink: 0 }}
+                                    >
+                                        <Calendar size={12} />
+                                    </button>
+                                </div>
+                            );
+                        })}
                     </div>
                 </Section>
             )}

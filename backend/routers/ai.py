@@ -11,6 +11,7 @@ from schemas import (
     FlashcardsRequest, FlashcardsResponse, Flashcard,
     ChatRequest, ChatResponse, NoteListItem,
     WritingAssistRequest, WritingAssistResponse,
+    WritingCoachRequest,
     ExpandIdeaRequest, ExpandIdeaResponse,
     MeetingNotesRequest, MeetingNotesResponse,
     InsightsResponse, VoiceNoteResponse,
@@ -65,12 +66,25 @@ async def chat_with_notes(body: ChatRequest, db: Client = Depends(get_db)):
         return ChatResponse(reply="Please ask a question.", sources=[])
 
     query = user_messages[-1].content
-    query_embedding = await gemini.embed_text(query)
-    hits = await vs.similarity_search(query_embedding, top_k=5)
-
-    relevant_hits = [(note_id, score) for note_id, score in hits if score >= 0.4]
     source_notes = []
     context_parts = []
+    pinned_ids: set[str] = set()
+
+    # If caller pinned specific note IDs, fetch them directly
+    if body.note_ids:
+        pinned_result = await asyncio.to_thread(
+            lambda: db.table("notes").select("id, title, content, created_at, updated_at").in_("id", body.note_ids).execute()
+        )
+        for n in (pinned_result.data or []):
+            n["tags"] = []
+            source_notes.append(NoteListItem(**n))
+            context_parts.append(f"=== {n['title']} ===\n{n['content']}")
+            pinned_ids.add(n["id"])
+
+    # Semantic search for additional context (exclude already-pinned notes)
+    query_embedding = await gemini.embed_text(query)
+    hits = await vs.similarity_search(query_embedding, top_k=5)
+    relevant_hits = [(note_id, score) for note_id, score in hits if score >= 0.4 and str(note_id) not in pinned_ids]
 
     if relevant_hits:
         hit_ids = [str(note_id) for note_id, _ in relevant_hits]
@@ -298,6 +312,156 @@ async def link_suggestions(
         suggestions.append(NoteListItem(**n))
 
     return LinkSuggestionsResponse(suggestions=suggestions)
+
+
+@router.post("/writing-coach")
+async def writing_coach(body: WritingCoachRequest):
+    system = (
+        "You are an inline writing coach. Given the last sentence or paragraph the user wrote, "
+        "suggest ONE concise continuation (max 15 words) that helps them think deeper or elaborate. "
+        "Return ONLY the suggestion text, no explanation, no quotes."
+    )
+    suggestion = await gemini.generate(body.text, system=system)
+    return {"suggestion": suggestion.strip()}
+
+
+@router.post("/extract-actions")
+async def extract_action_items(body: dict):
+    system = (
+        "Extract all action items, tasks, and reminders from this note. "
+        'Return JSON: {"actions": [{"task": "string", "due_hint": "string or null", "priority": "high or medium or low"}]}'
+    )
+    data = await gemini.generate_json(body.get("content", ""), system=system)
+    return {"actions": data.get("actions", [])}
+
+
+@router.get("/clusters")
+async def get_topic_clusters(db: Client = Depends(get_db)):
+    """Group notes by their top tag to form topic clusters."""
+    # Fetch all note_tags with tag names
+    tags_result = await asyncio.to_thread(
+        lambda: db.table("tags").select("id, name, note_tags(note_id)").execute()
+    )
+    tags_data = tags_result.data or []
+
+    # Fetch all notes for lookup
+    notes_result = await asyncio.to_thread(
+        lambda: db.table("notes").select("id, title, created_at, updated_at").execute()
+    )
+    notes_by_id = {n["id"]: n for n in (notes_result.data or [])}
+
+    clusters = []
+    for tag in tags_data:
+        note_ids = [nt["note_id"] for nt in (tag.get("note_tags") or [])]
+        if not note_ids:
+            continue
+        top_notes = []
+        for nid in note_ids[:3]:
+            n = notes_by_id.get(nid)
+            if n:
+                top_notes.append({"id": n["id"], "title": n.get("title", "Untitled")})
+        clusters.append({
+            "topic": tag["name"],
+            "note_ids": note_ids,
+            "notes": top_notes,
+            "count": len(note_ids),
+        })
+
+    clusters.sort(key=lambda c: c["count"], reverse=True)
+    return {"clusters": clusters}
+
+
+@router.get("/flashcards/{note_id}/due")
+async def get_due_flashcards(note_id: str, db: Client = Depends(get_db)):
+    """Return flashcards due for review for a note."""
+    now_iso = datetime.now(timezone.utc).isoformat()
+    try:
+        result = await asyncio.to_thread(
+            lambda: db.table("flashcards")
+            .select("*")
+            .eq("note_id", note_id)
+            .lte("next_review", now_iso)
+            .execute()
+        )
+        return {"flashcards": result.data or []}
+    except Exception:
+        return {"flashcards": []}
+
+
+@router.post("/flashcards/{note_id}/review")
+async def review_flashcard(note_id: str, card_id: str, quality: int, db: Client = Depends(get_db)):
+    """Update a flashcard's SM-2 interval after review."""
+    quality = max(0, min(5, quality))
+    try:
+        card_result = await asyncio.to_thread(
+            lambda: db.table("flashcards").select("*").eq("id", card_id).single().execute()
+        )
+        card = card_result.data
+        if not card:
+            return {"error": "Card not found"}
+
+        easiness = float(card.get("easiness", 2.5))
+        repetitions = int(card.get("repetitions", 0))
+        interval = int(card.get("interval", 1))
+
+        new_easiness = max(1.3, easiness + 0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02))
+        new_repetitions = repetitions + 1 if quality >= 3 else 0
+        if new_repetitions <= 1:
+            new_interval = 1
+        elif new_repetitions == 2:
+            new_interval = 6
+        else:
+            new_interval = round(interval * new_easiness)
+
+        next_review = (datetime.now(timezone.utc) + timedelta(days=new_interval)).isoformat()
+
+        await asyncio.to_thread(
+            lambda: db.table("flashcards").update({
+                "easiness": new_easiness,
+                "repetitions": new_repetitions,
+                "interval": new_interval,
+                "next_review": next_review,
+            }).eq("id", card_id).execute()
+        )
+        return {"interval": new_interval, "next_review": next_review}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@router.post("/flashcards/{note_id}/save")
+async def save_flashcards_to_db(note_id: str, body: dict, db: Client = Depends(get_db)):
+    """Save AI-generated flashcards to the flashcards table."""
+    cards = body.get("flashcards", [])
+    if not cards:
+        return {"saved": 0}
+    rows = [
+        {
+            "note_id": note_id,
+            "question": c["question"],
+            "answer": c["answer"],
+        }
+        for c in cards
+    ]
+    try:
+        await asyncio.to_thread(
+            lambda: db.table("flashcards").insert(rows).execute()
+        )
+        return {"saved": len(rows)}
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@router.post("/template-fill")
+async def fill_template(body: dict):
+    template_type = body.get("template_type", "blank")
+    context = body.get("context", "")
+    system = (
+        f"You are an AI that fills note templates. Template type: {template_type}. "
+        f"Context: {context}. Generate helpful placeholder content for each section. "
+        "Return only the filled template as plain text with section headers."
+    )
+    result = await gemini.generate(f"Fill this {template_type} template with relevant content.", system=system)
+    return {"content": result}
 
 
 @router.post("/research", response_model=ResearchResponse)

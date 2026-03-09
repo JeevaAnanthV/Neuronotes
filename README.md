@@ -2,7 +2,7 @@
 
 > Your AI-powered knowledge workspace — where notes become intelligence.
 
-![CI](https://github.com/YOUR_USERNAME/neuronotes/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/JeevaAnanthV/Neuronotes/actions/workflows/ci.yml/badge.svg)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 ![Python](https://img.shields.io/badge/python-3.12-green)
 ![Next.js](https://img.shields.io/badge/Next.js-14-black)
@@ -25,6 +25,16 @@ NeuroNotes is not a notes app. It is a **thinking system** — built for enginee
 - **Writing Assistant** — improve, rewrite, expand, or bullet-ify any selection
 - **Knowledge Gap Detection** — AI identifies concepts you have not covered yet
 - **Magic Link Auth** — passwordless, secure sign-in via Supabase Auth
+
+### New Competition Features (v2)
+
+- **Collaborative Notes** — Supabase Realtime presence shows other viewers; live toast when note is updated by another user
+- **AI Writing Coach** — inline ghost suggestions appear after 2s of typing 50+ chars; Tab to accept, Esc to dismiss
+- **Spaced Repetition (SM-2)** — flashcard study mode at `/flashcards` with Again/Hard/Good/Easy ratings and SM-2 scheduling stored in localStorage
+- **Note Templates** — 6 pre-built templates (Meeting, Research, Journal, Idea, Book, Blank) via modal on "+ New Note"
+- **Cross-Note Q&A** — dedicated page at `/qa`; pin specific notes as context or ask across all notes; sources shown per answer
+- **Smart Reminders** — AI extracts action items from note content; Google Calendar integration; aggregated view at `/reminders`
+- **Topic Clustering** — visual card grid at `/clusters` grouping notes by tag; filterable by topic
 
 ---
 
@@ -212,3 +222,6 @@ Built for the Note-Taking Application Challenge. Demonstrates:
 - **Cloud-native design** — Supabase for DB + auth, Vercel-ready frontend, Railway-ready backend
 - **End-to-end type safety** — TypeScript frontend + Pydantic backend schemas
 - **Comprehensive test suite** — 40 pytest tests, zero external API calls during CI
+- **Real-time collaboration** — Supabase Realtime presence and postgres_changes subscriptions
+- **Spaced repetition learning** — SM-2 algorithm implementation for long-term knowledge retention
+- **7 advanced features** added for competition: Collaborative Notes, AI Writing Coach, Spaced Repetition, Note Templates, Cross-Note Q&A, Smart Reminders, Topic Clustering

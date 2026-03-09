@@ -135,7 +135,6 @@ export function CommandPalette({ onClose }: Props) {
                 onClose();
             }
         },
-        // eslint-disable-next-line react-hooks/exhaustive-deps
         [allItems, router, onClose]
     );
 

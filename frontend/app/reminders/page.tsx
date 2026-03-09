@@ -27,20 +27,18 @@ function storageKey(k: string) { return `action-done:${k}`; }
 
 export default function RemindersPage() {
     const [actions, setActions] = useState<ActionItem[]>([]);
-    const [done, setDone] = useState<Set<string>>(new Set());
-    const [loading, setLoading] = useState(true);
-
-    useEffect(() => {
-        // Load done state from localStorage
+    const [done, setDone] = useState<Set<string>>(() => {
         const doneKeys: Set<string> = new Set();
+        if (typeof window === "undefined") return doneKeys;
         for (let i = 0; i < localStorage.length; i++) {
             const k = localStorage.key(i);
             if (k?.startsWith("action-done:") && localStorage.getItem(k) === "1") {
                 doneKeys.add(k.replace("action-done:", ""));
             }
         }
-        setDone(doneKeys);
-    }, []);
+        return doneKeys;
+    });
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         async function load() {

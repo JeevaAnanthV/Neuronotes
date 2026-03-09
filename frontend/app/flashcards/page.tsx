@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { notesApi, aiApi } from "@/lib/api";
 import { Brain, RotateCcw, CheckCircle2, XCircle, Minus, ChevronRight } from "lucide-react";
 
@@ -129,12 +129,12 @@ export default function FlashcardsPage() {
         setGenerating(false);
     }
 
-    function handleRate(quality: number) {
+    const handleRate = useCallback((quality: number) => {
         const card = cards[current];
         const result = sm2(quality, card.repetitions, card.easiness, card.interval);
-        const nextReview = Date.now() + result.interval * 86400000;
+        const now = new Date().getTime();
+        const nextReview = now + result.interval * 86400000;
         saveCardState(card.noteId, card.hash, { ...result, nextReview });
-        // Update question/answer storage too
         localStorage.setItem(`fc-q:${card.noteId}:${card.hash}`, card.question);
         localStorage.setItem(`fc-a:${card.noteId}:${card.hash}`, card.answer);
 
@@ -144,7 +144,7 @@ export default function FlashcardsPage() {
         } else {
             setCurrent(c => c + 1);
         }
-    }
+    }, [cards, current]);
 
     if (loading) {
         return (

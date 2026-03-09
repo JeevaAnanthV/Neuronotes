@@ -1,0 +1,25 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy:
+    name: Deploy to Production
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Deploy Backend
+        run: echo "Deploy backend to Railway/Render"
+        # Example for Railway:
+        # run: railway up --service backend
+        # env:
+        #   RAILWAY_TOKEN: ${{ secrets.RAILWAY_TOKEN }}
+
+      - name: Deploy Frontend
+        run: echo "Deploy frontend to Vercel"
+        # Example for Vercel:
+        # run: vercel --prod --token ${{ secrets.VERCEL_TOKEN }}

@@ -1,0 +1,319 @@
+import asyncio
+import uuid
+from datetime import datetime, timedelta, timezone
+from fastapi import APIRouter, Depends, UploadFile, File
+from supabase import Client
+from postgrest.exceptions import APIError as PostgRESTError
+from database import get_db
+from schemas import (
+    StructureRequest, StructureResponse,
+    TagsRequest, TagsResponse,
+    FlashcardsRequest, FlashcardsResponse, Flashcard,
+    ChatRequest, ChatResponse, NoteListItem,
+    WritingAssistRequest, WritingAssistResponse,
+    ExpandIdeaRequest, ExpandIdeaResponse,
+    MeetingNotesRequest, MeetingNotesResponse,
+    InsightsResponse, VoiceNoteResponse,
+    GapsResponse, LinkSuggestionsResponse, ResearchRequest, ResearchResponse,
+)
+from services import gemini
+from services import vector as vs
+
+router = APIRouter(prefix="/ai", tags=["ai"])
+
+
+@router.post("/structure", response_model=StructureResponse)
+async def structure_note(body: StructureRequest):
+    system = (
+        "You are a note-structuring AI. Given raw, unstructured text, "
+        "output a JSON object with keys: title (string) and structured_content (markdown string). "
+        "structured_content should have sections: Summary, Key Points (bullet list), Action Items (bullet list)."
+    )
+    data = await gemini.generate_json(body.text, system=system)
+    return StructureResponse(
+        title=data.get("title", "Untitled"),
+        structured_content=data.get("structured_content", ""),
+    )
+
+
+@router.post("/tags", response_model=TagsResponse)
+async def generate_tags(body: TagsRequest):
+    system = (
+        'You are a tagging AI. Given note content, return a JSON object with a single key "tags" '
+        "containing a list of 3-6 lowercase hyphenated topic tags (no # prefix). "
+        "Example: {\"tags\": [\"machine-learning\", \"deep-learning\", \"cnn\"]}"
+    )
+    data = await gemini.generate_json(body.content, system=system)
+    return TagsResponse(tags=data.get("tags", []))
+
+
+@router.post("/flashcards", response_model=FlashcardsResponse)
+async def generate_flashcards(body: FlashcardsRequest):
+    system = (
+        "You are a study AI. Given note content, return a JSON object with key \"flashcards\", "
+        "each item having \"question\" and \"answer\" keys. Generate 3-8 flashcards."
+    )
+    data = await gemini.generate_json(body.content, system=system)
+    cards = [Flashcard(**c) for c in data.get("flashcards", [])]
+    return FlashcardsResponse(flashcards=cards)
+
+
+@router.post("/chat", response_model=ChatResponse)
+async def chat_with_notes(body: ChatRequest, db: Client = Depends(get_db)):
+    user_messages = [m for m in body.messages if m.role == "user"]
+    if not user_messages:
+        return ChatResponse(reply="Please ask a question.", sources=[])
+
+    query = user_messages[-1].content
+    query_embedding = await gemini.embed_text(query)
+    hits = await vs.similarity_search(query_embedding, top_k=5)
+
+    relevant_hits = [(note_id, score) for note_id, score in hits if score >= 0.4]
+    source_notes = []
+    context_parts = []
+
+    if relevant_hits:
+        hit_ids = [str(note_id) for note_id, _ in relevant_hits]
+        notes_result = await asyncio.to_thread(
+            lambda: db.table("notes").select("id, title, content, created_at, updated_at").in_("id", hit_ids).execute()
+        )
+        notes_by_id = {n["id"]: n for n in (notes_result.data or [])}
+        for note_id, score in relevant_hits:
+            note = notes_by_id.get(str(note_id))
+            if note:
+                note["tags"] = []
+                source_notes.append(NoteListItem(**note))
+                context_parts.append(f"=== {note['title']} ===\n{note['content']}")
+
+    context = "\n\n".join(context_parts)
+    history = "\n".join([f"{m.role.upper()}: {m.content}" for m in body.messages[:-1]])
+
+    prompt = (
+        f"You are a knowledgeable AI assistant with access to the user's personal notes.\n\n"
+        f"RELEVANT NOTES:\n{context or 'No relevant notes found.'}\n\n"
+        f"CONVERSATION HISTORY:\n{history}\n\n"
+        f"USER: {query}\n\n"
+        f"Answer the question based on the notes above. If the notes don't contain enough information, "
+        f"say so and answer from general knowledge."
+    )
+    reply = await gemini.generate(prompt)
+    return ChatResponse(reply=reply, sources=source_notes)
+
+
+@router.post("/writing-assist", response_model=WritingAssistResponse)
+async def writing_assist(body: WritingAssistRequest):
+    action_prompts = {
+        "improve": "Improve the writing quality, clarity, and flow of the following text. Return only the improved text.",
+        "summarize": "Summarize the following text concisely in 2-3 sentences. Return only the summary.",
+        "expand": "Expand the following text with more detail, examples, and depth. Return only the expanded text.",
+        "bullet": "Convert the following text into a clear bullet point list. Return only the bullet points.",
+        "explain": "Explain the following text in simple terms as if explaining to a beginner. Return only the explanation.",
+    }
+    instruction = action_prompts.get(body.action, "Improve the following text.")
+    result = await gemini.generate(f"{instruction}\n\nTEXT:\n{body.text}")
+    return WritingAssistResponse(result=result)
+
+
+@router.post("/expand-idea", response_model=ExpandIdeaResponse)
+async def expand_idea(body: ExpandIdeaRequest):
+    system = (
+        "You are an idea-expansion AI. Given a short idea, generate 5-8 specific, actionable "
+        "sub-ideas or expansions. Return JSON: {\"expanded\": [\"idea1\", \"idea2\", ...]}"
+    )
+    data = await gemini.generate_json(body.idea, system=system)
+    return ExpandIdeaResponse(expanded=data.get("expanded", []))
+
+
+@router.post("/meeting-notes", response_model=MeetingNotesResponse)
+async def extract_meeting_notes(body: MeetingNotesRequest):
+    system = (
+        "You are an expert at processing meeting transcripts. Extract and return JSON with keys: "
+        "summary (string), action_items (list of strings), key_decisions (list of strings)."
+    )
+    data = await gemini.generate_json(body.transcript, system=system)
+    return MeetingNotesResponse(
+        summary=data.get("summary", ""),
+        action_items=data.get("action_items", []),
+        key_decisions=data.get("key_decisions", []),
+    )
+
+
+@router.get("/insights", response_model=InsightsResponse)
+async def daily_insights(db: Client = Depends(get_db)):
+    # Total notes count
+    all_notes_result = await asyncio.to_thread(
+        lambda: db.table("notes").select("id, created_at").execute()
+    )
+    all_notes = all_notes_result.data or []
+    total_notes = len(all_notes)
+
+    # Notes this week
+    week_ago = datetime.now(timezone.utc) - timedelta(days=7)
+    notes_this_week = sum(
+        1 for n in all_notes
+        if datetime.fromisoformat(n["created_at"].replace("Z", "+00:00")) >= week_ago
+    )
+
+    # Top tag: fetch note_tags counts per tag
+    tags_result = await asyncio.to_thread(
+        lambda: db.table("tags").select("id, name, note_tags(note_id)").execute()
+    )
+    tags_data = tags_result.data or []
+    top_topic = "General"
+    if tags_data:
+        tags_sorted = sorted(tags_data, key=lambda t: len(t.get("note_tags") or []), reverse=True)
+        if tags_sorted and (tags_sorted[0].get("note_tags") or []):
+            top_topic = tags_sorted[0]["name"]
+
+    # Unfinished ideas: notes with no tags AND content < 150 chars
+    note_tags_result = await asyncio.to_thread(
+        lambda: db.table("note_tags").select("note_id").execute()
+    )
+    tagged_note_ids = {nt["note_id"] for nt in (note_tags_result.data or [])}
+    content_result = await asyncio.to_thread(
+        lambda: db.table("notes").select("id, content").execute()
+    )
+    unfinished_ideas = sum(
+        1 for n in (content_result.data or [])
+        if n["id"] not in tagged_note_ids and len(n.get("content") or "") < 150
+    )
+
+    # Recent note titles for AI insight
+    recent_result = await asyncio.to_thread(
+        lambda: db.table("notes").select("title").order("updated_at", desc=True).limit(5).execute()
+    )
+    recent_titles = [n["title"] for n in (recent_result.data or [])]
+    note_summaries = "\n".join([f"- {t}" for t in recent_titles])
+
+    ai_insight_task = gemini.generate(
+        f"Based on these recent notes, give one concise, encouraging insight about the user's knowledge journey (1-2 sentences):\n{note_summaries or 'No notes yet.'}"
+    )
+    suggested_topics_task = gemini.generate_json(
+        f"Based on these note titles, suggest 3-4 related topics the user hasn't covered yet. "
+        f"Return JSON: {{\"topics\": [\"topic1\", \"topic2\", ...]}}\n{note_summaries or 'No notes yet.'}"
+    )
+
+    ai_insight_raw, suggested_data = await asyncio.gather(ai_insight_task, suggested_topics_task)
+
+    return InsightsResponse(
+        total_notes=total_notes,
+        notes_this_week=notes_this_week,
+        top_topic=top_topic,
+        unfinished_ideas=unfinished_ideas,
+        ai_insight=ai_insight_raw.strip(),
+        suggested_topics=suggested_data.get("topics", []),
+    )
+
+
+@router.post("/voice", response_model=VoiceNoteResponse)
+async def process_voice_note(file: UploadFile = File(...)):
+    audio_bytes = await file.read()
+    mime_type = file.content_type or "audio/webm"
+    transcript = await gemini.transcribe_audio(audio_bytes, mime_type)
+
+    system = (
+        "Given a voice transcription, return JSON with keys: "
+        "title (short note title), structured_content (well-formatted markdown note)."
+    )
+    data = await gemini.generate_json(transcript, system=system)
+    return VoiceNoteResponse(
+        transcript=transcript,
+        title=data.get("title", "Voice Note"),
+        structured_content=data.get("structured_content", transcript),
+    )
+
+
+@router.get("/gaps", response_model=GapsResponse)
+async def knowledge_gaps(db: Client = Depends(get_db)):
+    """Detect missing concepts in the user's knowledge base."""
+    result = await asyncio.to_thread(
+        lambda: db.table("notes").select("title").order("updated_at", desc=True).limit(30).execute()
+    )
+    titles = [n["title"] for n in (result.data or [])]
+    if not titles:
+        return GapsResponse(gaps=[], suggestion="Create some notes first to detect knowledge gaps.")
+
+    titles_list = "\n".join([f"- {t}" for t in titles])
+    data = await gemini.generate_json(
+        f"Here are the topics a user has written notes about:\n{titles_list}\n\n"
+        "Identify 4-6 important related concepts they haven't covered yet. "
+        'Return JSON: {"gaps": ["concept1", "concept2", ...], "suggestion": "one sentence of encouragement"}'
+    )
+    return GapsResponse(
+        gaps=data.get("gaps", []),
+        suggestion=data.get("suggestion", "Keep learning!"),
+    )
+
+
+@router.get("/link-suggestions/{note_id}", response_model=LinkSuggestionsResponse)
+async def link_suggestions(
+    note_id: uuid.UUID,
+    db: Client = Depends(get_db),
+):
+    """Return top related notes for a given note that are not yet linked."""
+    # Fetch the note's embedding
+    try:
+        note_result = await asyncio.to_thread(
+            lambda: db.table("notes").select("id, embedding").eq("id", str(note_id)).single().execute()
+        )
+    except PostgRESTError:
+        return LinkSuggestionsResponse(suggestions=[])
+    if not note_result.data or not note_result.data.get("embedding"):
+        return LinkSuggestionsResponse(suggestions=[])
+
+    note_embedding = note_result.data["embedding"]
+    # embedding comes back as a list from Supabase REST
+
+    # Get already-linked note IDs
+    links_result = await asyncio.to_thread(
+        lambda: db.table("note_links")
+        .select("source_id, target_id")
+        .or_(f"source_id.eq.{note_id},target_id.eq.{note_id}")
+        .execute()
+    )
+    linked_ids: set[str] = {str(note_id)}
+    for link in (links_result.data or []):
+        linked_ids.add(str(link["source_id"]))
+        linked_ids.add(str(link["target_id"]))
+
+    # Find top similar notes
+    hits = await vs.similarity_search(note_embedding, top_k=10, threshold=0.6, exclude_id=note_id)
+    candidate_ids = [
+        str(hit_id) for hit_id, score in hits
+        if str(hit_id) not in linked_ids
+    ][:3]
+
+    if not candidate_ids:
+        return LinkSuggestionsResponse(suggestions=[])
+
+    suggestions_result = await asyncio.to_thread(
+        lambda: db.table("notes")
+        .select("id, title, content, created_at, updated_at")
+        .in_("id", candidate_ids)
+        .execute()
+    )
+    suggestions = []
+    for n in (suggestions_result.data or []):
+        n["tags"] = []
+        suggestions.append(NoteListItem(**n))
+
+    return LinkSuggestionsResponse(suggestions=suggestions)
+
+
+@router.post("/research", response_model=ResearchResponse)
+async def research_assistant(body: ResearchRequest):
+    """Summarize an article or research paper and extract key insights."""
+    system = (
+        "You are an expert research assistant. Given the provided text (article, paper, or notes), "
+        "return JSON with keys: "
+        "summary (2-3 sentence summary), "
+        "key_insights (list of 4-6 specific insights or findings), "
+        "concepts (list of 3-5 important concepts introduced). "
+        'Example: {"summary": "...", "key_insights": [...], "concepts": [...]}'
+    )
+    data = await gemini.generate_json(body.text, system=system)
+    return ResearchResponse(
+        summary=data.get("summary", ""),
+        key_insights=data.get("key_insights", []),
+        concepts=data.get("concepts", []),
+    )

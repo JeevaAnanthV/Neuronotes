@@ -4,6 +4,7 @@ import "./globals.css";
 import { Sidebar } from "@/components/Sidebar";
 import { MobileNav } from "@/components/MobileNav";
 import { FloatingAI } from "@/components/FloatingAI";
+import { AppShell } from "@/components/AppShell";
 
 const inter = Inter({
   subsets: ["latin"],
@@ -22,14 +23,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="en" className={inter.variable}>
       <body>
-        <div className="app-shell">
-          <Sidebar />
-          <div style={{ flex: 1, overflow: "hidden", display: "flex", minWidth: 0 }}>
-            {children}
-          </div>
-        </div>
-        <MobileNav />
-        <FloatingAI />
+        <AppShell
+          sidebar={<Sidebar />}
+          mobileNav={<MobileNav />}
+          floatingAI={<FloatingAI />}
+        >
+          {children}
+        </AppShell>
       </body>
     </html>
   );

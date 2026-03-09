@@ -29,34 +29,45 @@ export function CollaborativeIndicator({ noteId }: Props) {
 
     useEffect(() => {
         const supabase = createClient();
-        const userId = `anon-${Math.random().toString(36).slice(2, 8)}`;
-        const channel = supabase.channel(`note-presence:${noteId}`, {
-            config: { presence: { key: userId } },
-        });
+        let userId = "";
+        let displayName = "Viewer";
 
-        channelRef.current = channel;
+        // Resolve the authenticated user before subscribing to presence
+        supabase.auth.getUser().then(({ data }) => {
+            const user = data?.user;
+            userId = user?.id ?? `anon-${Math.random().toString(36).slice(2, 8)}`;
+            displayName = user?.email?.split("@")[0] ?? user?.id?.slice(0, 6) ?? "Viewer";
 
-        channel
-            .on("presence", { event: "sync" }, () => {
-                const state = channel.presenceState<{ name: string }>();
-                const active: Viewer[] = Object.entries(state)
-                    .filter(([id]) => id !== userId)
-                    .map(([id, presences]) => ({
-                        user_id: id,
-                        name: (presences[0] as { name: string })?.name || "Viewer",
-                        color: colorForId(id),
-                    }));
-                setViewers(active);
-            })
-            .subscribe(async (status) => {
-                if (status === "SUBSCRIBED") {
-                    await channel.track({ name: "You", joined_at: Date.now() });
-                }
+            const channel = supabase.channel(`note-presence:${noteId}`, {
+                config: { presence: { key: userId } },
             });
 
+            channelRef.current = channel;
+
+            channel
+                .on("presence", { event: "sync" }, () => {
+                    const state = channel.presenceState<{ name: string }>();
+                    const active: Viewer[] = Object.entries(state)
+                        .filter(([id]) => id !== userId)
+                        .map(([id, presences]) => ({
+                            user_id: id,
+                            name: (presences[0] as { name: string })?.name || "Viewer",
+                            color: colorForId(id),
+                        }));
+                    setViewers(active);
+                })
+                .subscribe(async (status) => {
+                    if (status === "SUBSCRIBED") {
+                        await channel.track({ name: displayName, joined_at: Date.now() });
+                    }
+                });
+        });
+
         return () => {
-            channel.untrack();
-            supabase.removeChannel(channel);
+            if (channelRef.current) {
+                channelRef.current.untrack();
+                supabase.removeChannel(channelRef.current);
+            }
         };
     }, [noteId]);
 

@@ -29,7 +29,11 @@ jobs:
         run: |
           cd backend
           pytest tests/ -v --tb=short
-        # Tests are fully mocked — no external credentials required
+        env:
+          # Dummy values satisfy module-level init; all API calls are mocked
+          SUPABASE_URL: https://placeholder.supabase.co
+          SUPABASE_SERVICE_ROLE_KEY: placeholder_service_key
+          GEMINI_API_KEY: placeholder_gemini_key
 
   frontend-check:
     name: Frontend Type Check & Lint

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
-import { notesApi, aiApi, type Note } from "@/lib/api";
+import { notesApi, aiApi } from "@/lib/api";
 import { Editor } from "@/components/Editor";
 import { ContextPanel } from "@/components/ContextPanel";
 import { DailyInsights } from "@/components/DailyInsights";
@@ -23,7 +23,6 @@ function isNoteEmpty(title: string, content: string): boolean {
 export default function NotePage() {
     const { id } = useParams<{ id: string }>();
     const router = useRouter();
-    const [note, setNote] = useState<Note | null>(null);
     const [title, setTitle] = useState("");
     const [content, setContent] = useState("");
     const [saving, setSaving] = useState(false);
@@ -36,7 +35,6 @@ export default function NotePage() {
     useEffect(() => {
         setLoading(true);
         notesApi.get(id).then((n) => {
-            setNote(n);
             setTitle(n.title || "");
             setContent(n.content || "");
         }).catch(() => {

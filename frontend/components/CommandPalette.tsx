@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import { searchApi, notesApi, type NoteListItem, type SearchResult } from "@/lib/api";
 import { FileText, Plus, Search, Zap, MessageSquare, BookOpen, GitBranch } from "lucide-react";
@@ -116,13 +116,13 @@ export function CommandPalette({ onClose }: Props) {
         : allNotes.slice(0, 6).map((n) => ({ note: n, score: 1 }));
 
     // Flat list for keyboard nav: actions first, then notes
-    const allItems: Array<
+    const allItems = useMemo<Array<
         | { type: "action"; item: ActionItem }
         | { type: "note"; item: SearchResult }
-    > = [
+    >>(() => [
         ...filteredActions.map((a) => ({ type: "action" as const, item: a })),
         ...noteItems.map((n) => ({ type: "note" as const, item: n })),
-    ];
+    ], [filteredActions, noteItems]);
 
     const handleSelect = useCallback(
         (idx: number) => {

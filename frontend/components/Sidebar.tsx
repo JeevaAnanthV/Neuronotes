@@ -21,7 +21,6 @@ import {
     X,
     Bell,
     Layers,
-    BookOpen,
     HelpCircle,
 } from "lucide-react";
 

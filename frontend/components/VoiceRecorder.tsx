@@ -3,6 +3,7 @@
 import { useState, useRef } from "react";
 import { aiApi } from "@/lib/api";
 
+
 interface Props {
     onNoteCreated?: (title: string, content: string) => void;
 }
@@ -11,6 +12,7 @@ export function VoiceRecorder({ onNoteCreated }: Props) {
     const [recording, setRecording] = useState(false);
     const [processing, setProcessing] = useState(false);
     const [transcript, setTranscript] = useState("");
+    const [voiceError, setVoiceError] = useState<string | null>(null);
     const mediaRef = useRef<MediaRecorder | null>(null);
     const chunksRef = useRef<BlobPart[]>([]);
 
@@ -34,7 +36,7 @@ export function VoiceRecorder({ onNoteCreated }: Props) {
                     setTranscript(result.transcript);
                     onNoteCreated?.(result.title, result.structured_content);
                 } catch {
-                    alert("Voice processing failed. Check backend connection.");
+                    setVoiceError("Voice processing failed. Check backend connection.");
                 } finally {
                     setProcessing(false);
                 }
@@ -43,7 +45,7 @@ export function VoiceRecorder({ onNoteCreated }: Props) {
             recorder.start();
             setRecording(true);
         } catch {
-            alert("Microphone access denied or not available.");
+            setVoiceError("Microphone access denied or not available.");
         }
     };
 
@@ -107,7 +109,10 @@ export function VoiceRecorder({ onNoteCreated }: Props) {
                         : "Record a voice note"}
             </span>
 
-            {transcript && (
+            {voiceError && (
+                <span style={{ fontSize: "11.5px", color: "var(--accent-error)" }}>{voiceError}</span>
+            )}
+            {!voiceError && transcript && (
                 <span style={{ fontSize: "12px", color: "var(--text-secondary)", maxWidth: "200px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     &quot;{transcript}&quot;
                 </span>

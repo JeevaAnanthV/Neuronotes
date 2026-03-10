@@ -1,5 +1,9 @@
 # Environment files — NEVER commit secrets
+.env
+.env.local
+.env.*.local
 backend/.env
+mobile/.env
 frontend/.env.local
 credential.txt
 *.env.local
@@ -25,12 +29,18 @@ build/
 *.egg-info/
 
 # Node
-frontend/node_modules/
 node_modules/
-frontend/.next/
+frontend/node_modules/
+mobile/node_modules/
 .next/
+frontend/.next/
 frontend/out/
 out/
+
+# Expo / React Native
+mobile/.expo/
+mobile/android/
+mobile/ios/
 
 # OS
 .DS_Store
@@ -43,4 +53,14 @@ Thumbs.db
 *.swo
 
 # Docker
+*.tar
+
+# Logs
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# TypeScript build info
+*.tsbuildinfo
+frontend/tsconfig.tsbuildinfo

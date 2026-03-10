@@ -1,4 +1,5 @@
 "use client";
+export const dynamic = "force-dynamic";
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter } from "next/navigation";
@@ -23,6 +24,7 @@ export default function RoomsPage() {
     const [createModalOpen, setCreateModalOpen] = useState(false);
     const [roomName, setRoomName] = useState("");
     const [creating, setCreating] = useState(false);
+    const [createError, setCreateError] = useState<string | null>(null);
     const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
 
     // Get current user
@@ -54,6 +56,7 @@ export default function RoomsPage() {
         const name = roomName.trim();
         if (!name || creating || !userId) return;
         setCreating(true);
+        setCreateError(null);
         try {
             const room = await roomsApi.create(name, userId);
             setRooms((prev) => [{ ...room, member_count: 1 }, ...prev]);
@@ -61,7 +64,7 @@ export default function RoomsPage() {
             setRoomName("");
             router.push(`/rooms/${room.slug}`);
         } catch {
-            alert("Failed to create room. Check backend connection.");
+            setCreateError("Failed to create room. Check backend connection.");
         } finally {
             setCreating(false);
         }
@@ -226,10 +229,15 @@ export default function RoomsPage() {
                             onFocus={(e) => { e.currentTarget.style.borderColor = "var(--accent-primary)"; }}
                             onBlur={(e) => { e.currentTarget.style.borderColor = "var(--border)"; }}
                         />
+                        {createError && (
+                            <div style={{ fontSize: "12px", color: "var(--accent-error)", marginBottom: "12px", padding: "8px 10px", background: "rgba(239,68,68,0.08)", borderRadius: "var(--radius-sm)", border: "1px solid rgba(239,68,68,0.2)" }}>
+                                {createError}
+                            </div>
+                        )}
                         <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
                             <button
                                 className="btn btn-ghost btn-sm"
-                                onClick={() => setCreateModalOpen(false)}
+                                onClick={() => { setCreateModalOpen(false); setCreateError(null); }}
                             >
                                 Cancel
                             </button>

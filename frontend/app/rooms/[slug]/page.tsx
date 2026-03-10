@@ -1,4 +1,5 @@
 "use client";
+export const dynamic = "force-dynamic";
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -143,7 +144,7 @@ export default function RoomPage() {
             setNotes(updatedNotes);
             setAddNoteOpen(false);
         } catch {
-            alert("Failed to add note to room.");
+            // silently ignore — note list stays unchanged
         }
     };
 

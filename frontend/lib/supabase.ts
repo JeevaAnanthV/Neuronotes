@@ -18,11 +18,15 @@ export const createClient = () =>
         process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
     );
 
-// Backward-compatible singleton export
-export const supabase = createBrowserClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-);
+// Backward-compatible lazy singleton — only created on first use (never at module eval time)
+// This prevents SSR prerender crashes when env vars aren't available at build time.
+let _supabase: ReturnType<typeof createBrowserClient> | null = null;
+export const supabase = new Proxy({} as ReturnType<typeof createBrowserClient>, {
+    get(_target, prop) {
+        if (!_supabase) _supabase = createClient();
+        return (_supabase as unknown as Record<string | symbol, unknown>)[prop];
+    },
+});
 
 // ── Type helpers that mirror the backend schemas ──────────────────────────────
 
@@ -49,7 +53,7 @@ export function subscribeToNotes(onUpdate: (note: SupabaseNote) => void) {
         .on(
             "postgres_changes",
             { event: "*", schema: "public", table: "notes" },
-            (payload) => onUpdate(payload.new as SupabaseNote)
+            (payload: { new: unknown }) => onUpdate(payload.new as SupabaseNote)
         )
         .subscribe();
 }

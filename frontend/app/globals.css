@@ -1,6 +1,8 @@
 @import "tailwindcss";
 
-:root {
+/* ── Dark theme (default) ─────────────────────────────────────────────────── */
+:root, [data-theme="dark"] {
+  color-scheme: dark;
   /* ── Core Palette ── */
   --bg-primary: #080808;
   --bg-secondary: #0F0F0F;
@@ -19,7 +21,37 @@
   --text-secondary: #909090;
   --text-muted: #555555;
 
-  /* ── Accent ── */
+  /* ── Shadows ── */
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.3);
+  --shadow-md: 0 6px 24px rgba(0,0,0,0.45);
+  --shadow-lg: 0 12px 40px rgba(0,0,0,0.55);
+}
+
+/* ── Light theme ──────────────────────────────────────────────────────────── */
+[data-theme="light"] {
+  color-scheme: light;
+  --bg-primary: #FAFAFA;
+  --bg-secondary: #F4F4F5;
+  --bg-elevated: #FFFFFF;
+  --bg-tertiary: #EFEFEF;
+  --bg-card: #FFFFFF;
+  --bg-hover: #E8E8EA;
+
+  --border: #E2E2E6;
+  --border-subtle: #EBEBEF;
+  --border-light: #D4D4D8;
+
+  --text-primary: #111111;
+  --text-secondary: #52525B;
+  --text-muted: #A1A1AA;
+
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.06);
+  --shadow-md: 0 6px 24px rgba(0,0,0,0.10);
+  --shadow-lg: 0 12px 40px rgba(0,0,0,0.14);
+}
+
+/* ── Shared tokens (accent, radius, layout, animation) ────────────────────── */
+:root {
   --accent-primary: #6366F1;
   --accent-glow: rgba(99,102,241,0.15);
   --accent-secondary: #22C55E;
@@ -33,23 +65,15 @@
   --warning: #F59E0B;
   --danger: #EF4444;
 
-  /* ── Radius ── */
   --radius-sm: 6px;
   --radius-md: 10px;
   --radius-lg: 14px;
 
-  /* ── Shadows ── */
-  --shadow-sm: 0 2px 8px rgba(0,0,0,0.3);
-  --shadow-md: 0 6px 24px rgba(0,0,0,0.45);
-  --shadow-lg: 0 12px 40px rgba(0,0,0,0.55);
-
-  /* ── Layout ── */
   --editor-width: 720px;
   --sidebar-width: 240px;
   --sidebar-collapsed-width: 56px;
   --panel-width: 300px;
 
-  /* ── Animation ── */
   --ease: cubic-bezier(0.4, 0, 0.2, 1);
   --duration-fast: 150ms;
   --duration-panel: 200ms;
@@ -660,8 +684,24 @@ html, body {
   flex-direction: column;
   gap: 14px;
   flex-shrink: 0;
-  transition: transform var(--duration-panel) var(--ease),
-              opacity var(--duration-panel) var(--ease);
+  transition: width var(--duration-panel) var(--ease),
+              min-width var(--duration-panel) var(--ease),
+              opacity var(--duration-panel) var(--ease),
+              transform var(--duration-panel) var(--ease);
+}
+
+/* Collapsed — zero width and height, invisible, not interactive */
+.context-panel.panel-collapsed {
+  width: 0 !important;
+  min-width: 0 !important;
+  height: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  border: none !important;
+  overflow: hidden !important;
+  opacity: 0 !important;
+  pointer-events: none !important;
+  flex-shrink: 0 !important;
 }
 
 .panel-section {
@@ -1070,6 +1110,10 @@ html, body {
 }
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+@keyframes skeletonPulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
 }
 
 .loading-spinner {

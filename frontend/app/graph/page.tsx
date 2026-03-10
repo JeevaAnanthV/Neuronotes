@@ -1,11 +1,12 @@
 "use client";
+export const dynamic = "force-dynamic";
 
 import { KnowledgeGraph } from "@/components/KnowledgeGraph";
 import { GitBranch } from "lucide-react";
 
 export default function GraphPage() {
     return (
-        <div style={{ width: "100%", height: "100%", display: "flex", flexDirection: "column" }}>
+        <div style={{ width: "100%", flex: 1, display: "flex", flexDirection: "column", minHeight: 0 }}>
             <div
                 style={{
                     padding: "0 24px",
@@ -24,7 +25,7 @@ export default function GraphPage() {
                     <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>Visualise connections between your notes</div>
                 </div>
             </div>
-            <div style={{ flex: 1, overflow: "hidden" }}>
+            <div style={{ flex: 1, overflow: "hidden", minHeight: 0, position: "relative" }}>
                 <KnowledgeGraph />
             </div>
         </div>

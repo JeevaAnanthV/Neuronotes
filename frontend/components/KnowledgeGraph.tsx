@@ -22,11 +22,13 @@ interface NodeTooltip {
     y: number;
 }
 
+const NODE_LIMIT = 50;
+
 // Clean minimal node style — small filled dot, label only on hover
 function buildNodes(data: GraphData, filterTag: string | null, highlightQuery: string): { nodes: RFNode[]; edges: RFEdge[] } {
-    const filteredNodes = filterTag
+    const filteredNodes = (filterTag
         ? data.nodes.filter((n) => n.tags.includes(filterTag))
-        : data.nodes;
+        : data.nodes).slice(0, NODE_LIMIT);
 
     const filteredNodeIds = new Set(filteredNodes.map((n) => n.id));
     const count = filteredNodes.length;
@@ -119,7 +121,7 @@ export function KnowledgeGraph() {
             await graphApi.recompute();
             await loadGraph();
         } catch {
-            alert("Backend unavailable");
+            // Backend unavailable — recomputing state resets, graph unchanged
         } finally {
             setRecomputing(false);
         }
@@ -127,9 +129,33 @@ export function KnowledgeGraph() {
 
     if (loading) {
         return (
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--text-muted)", gap: "10px" }}>
-                <span className="loading-spinner" />
-                Building knowledge graph…
+            <div style={{ width: "100%", height: "100%", position: "relative", background: "var(--bg-primary)", overflow: "hidden" }}>
+                {/* Skeleton dots simulating graph nodes */}
+                {[
+                    { top: "35%", left: "50%", size: 12 },
+                    { top: "25%", left: "35%", size: 10 },
+                    { top: "50%", left: "30%", size: 10 },
+                    { top: "20%", left: "60%", size: 8 },
+                    { top: "60%", left: "55%", size: 10 },
+                    { top: "45%", left: "70%", size: 8 },
+                    { top: "70%", left: "40%", size: 8 },
+                ].map((node, i) => (
+                    <div key={i} style={{
+                        position: "absolute",
+                        top: node.top,
+                        left: node.left,
+                        width: node.size,
+                        height: node.size,
+                        borderRadius: "50%",
+                        background: "var(--bg-tertiary)",
+                        transform: "translate(-50%, -50%)",
+                        animation: `skeletonPulse 1.4s ease-in-out ${i * 0.15}s infinite`,
+                    }} />
+                ))}
+                <div style={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--text-muted)", fontSize: "13px", gap: "8px" }}>
+                    <span className="loading-spinner" style={{ width: 12, height: 12 }} />
+                    Loading graph…
+                </div>
             </div>
         );
     }
@@ -151,7 +177,7 @@ export function KnowledgeGraph() {
     }
 
     return (
-        <div style={{ width: "100%", height: "100%", position: "relative", background: "var(--bg-primary)" }}>
+        <div style={{ width: "100%", height: "100%", minHeight: "400px", position: "relative", background: "var(--bg-primary)" }}>
             {/* Minimal controls — top-right only */}
             <div style={{
                 position: "absolute",
@@ -200,6 +226,11 @@ export function KnowledgeGraph() {
                     {recomputing ? <span className="loading-spinner" style={{ width: 11, height: 11 }} /> : <RefreshCw size={11} />}
                     Recompute
                 </button>
+                {graphData && graphData.nodes.length > NODE_LIMIT && (
+                    <div style={{ fontSize: "10.5px", color: "var(--text-muted)", background: "var(--bg-elevated)", padding: "4px 8px", borderRadius: "var(--radius-sm)", boxShadow: "var(--shadow-sm)", border: "1px solid var(--border)" }}>
+                        Showing {NODE_LIMIT} of {graphData.nodes.length} nodes
+                    </div>
+                )}
             </div>
 
             <ReactFlow

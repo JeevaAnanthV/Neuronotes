@@ -25,7 +25,8 @@ export async function middleware(request: NextRequest) {
         }
     );
 
-    // Refresh session if expired
+    // Refresh session — getUser() triggers token refresh internally.
+    // If the refresh token is invalid (400), user is null and we clear cookies.
     const { data: { user } } = await supabase.auth.getUser();
 
     const { pathname } = request.nextUrl;
@@ -44,7 +45,14 @@ export async function middleware(request: NextRequest) {
     if (!user) {
         const url = request.nextUrl.clone();
         url.pathname = "/auth";
-        return NextResponse.redirect(url);
+        const redirect = NextResponse.redirect(url);
+        // Clear all Supabase auth cookies so stale tokens don't cause repeated 400s
+        request.cookies.getAll().forEach(({ name }) => {
+            if (name.startsWith("sb-")) {
+                redirect.cookies.delete(name);
+            }
+        });
+        return redirect;
     }
 
     return supabaseResponse;

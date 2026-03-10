@@ -1,7 +1,7 @@
 import asyncio
 import base64
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone, date
 from fastapi import APIRouter, Depends, UploadFile, File
 from supabase import Client
 from postgrest.exceptions import APIError as PostgRESTError
@@ -60,6 +60,27 @@ async def generate_flashcards(body: FlashcardsRequest):
     return FlashcardsResponse(flashcards=cards)
 
 
+@router.get("/chat/history")
+async def get_chat_history(
+    user_id: str,
+    limit: int = 40,
+    db: Client = Depends(get_db),
+):
+    """Return the last `limit` chat messages for a user."""
+    try:
+        result = await asyncio.to_thread(
+            lambda: db.table("chat_messages")
+            .select("id, role, content, created_at")
+            .eq("user_id", user_id)
+            .order("created_at", desc=False)
+            .limit(limit)
+            .execute()
+        )
+        return {"messages": result.data or []}
+    except Exception:
+        return {"messages": []}
+
+
 @router.post("/chat", response_model=ChatResponse)
 async def chat_with_notes(body: ChatRequest, db: Client = Depends(get_db)):
     user_messages = [m for m in body.messages if m.role == "user"]
@@ -112,6 +133,20 @@ async def chat_with_notes(body: ChatRequest, db: Client = Depends(get_db)):
         f"say so and answer from general knowledge."
     )
     reply = await gemini.generate(prompt)
+
+    # Persist this turn to chat_messages if user_id is provided
+    user_id = getattr(body, "user_id", None)
+    if user_id:
+        try:
+            await asyncio.to_thread(
+                lambda: db.table("chat_messages").insert([
+                    {"user_id": user_id, "role": "user", "content": query},
+                    {"user_id": user_id, "role": "assistant", "content": reply},
+                ]).execute()
+            )
+        except Exception:
+            pass  # persistence failure must not break the response
+
     return ChatResponse(reply=reply, sources=source_notes)
 
 
@@ -493,6 +528,87 @@ async def detect_calendar_events(body: dict):
         f"Content: {content[:2000]}"
     )
     return {"events": data.get("events", [])}
+
+
+@router.get("/trends")
+async def get_trends(db: Client = Depends(get_db)):
+    """
+    Real-time Technical Trend Intelligence derived from the user's own notes.
+    Returns:
+    - trending_topics: tag-based clusters sorted by note count
+    - most_connected: notes with most knowledge-graph links
+    - activity_heatmap: daily note creation counts for the last 84 days (12 weeks)
+    """
+    # ── 1. Trending topics (tags with most notes) ──────────────────────────────
+    tags_result = await asyncio.to_thread(
+        lambda: db.table("tags").select("id, name, note_tags(note_id, notes(id, title))").execute()
+    )
+    tags_raw = tags_result.data or []
+    trending_topics = []
+    for tag in tags_raw:
+        notes_in_tag = [
+            nt["notes"] for nt in (tag.get("note_tags") or [])
+            if nt and nt.get("notes")
+        ]
+        if not notes_in_tag:
+            continue
+        trending_topics.append({
+            "topic": tag["name"],
+            "count": len(notes_in_tag),
+            "notes": [{"id": n["id"], "title": n.get("title", "Untitled")} for n in notes_in_tag[:3]],
+        })
+    trending_topics.sort(key=lambda t: t["count"], reverse=True)
+
+    # ── 2. Most connected notes (by note_links count) ─────────────────────────
+    links_result = await asyncio.to_thread(
+        lambda: db.table("note_links").select("source_id, target_id").execute()
+    )
+    links_raw = links_result.data or []
+    connection_counts: dict[str, int] = {}
+    for link in links_raw:
+        for key in ("source_id", "target_id"):
+            nid = str(link[key])
+            connection_counts[nid] = connection_counts.get(nid, 0) + 1
+
+    top_ids = sorted(connection_counts, key=lambda k: connection_counts[k], reverse=True)[:10]
+    most_connected = []
+    if top_ids:
+        notes_res = await asyncio.to_thread(
+            lambda: db.table("notes").select("id, title").in_("id", top_ids).execute()
+        )
+        id_to_title = {n["id"]: n.get("title", "Untitled") for n in (notes_res.data or [])}
+        for nid in top_ids:
+            most_connected.append({
+                "id": nid,
+                "title": id_to_title.get(nid, "Untitled"),
+                "connections": connection_counts[nid],
+            })
+
+    # ── 3. Activity heatmap — daily note creation for last 84 days ────────────
+    since = datetime.now(timezone.utc) - timedelta(days=84)
+    activity_result = await asyncio.to_thread(
+        lambda: db.table("notes").select("created_at").gte("created_at", since.isoformat()).execute()
+    )
+    activity_raw = activity_result.data or []
+
+    # Build date → count map
+    counts_by_date: dict[str, int] = {}
+    for n in activity_raw:
+        day = n["created_at"][:10]  # "YYYY-MM-DD"
+        counts_by_date[day] = counts_by_date.get(day, 0) + 1
+
+    # Generate 84 consecutive days
+    today = date.today()
+    heatmap = []
+    for i in range(83, -1, -1):
+        d = (today - timedelta(days=i)).isoformat()
+        heatmap.append({"date": d, "count": counts_by_date.get(d, 0)})
+
+    return {
+        "trending_topics": trending_topics[:12],
+        "most_connected": most_connected,
+        "activity_heatmap": heatmap,
+    }
 
 
 @router.post("/research", response_model=ResearchResponse)

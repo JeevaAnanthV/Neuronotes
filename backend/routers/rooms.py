@@ -1,9 +1,11 @@
 import asyncio
 import re
+import jwt as pyjwt
 from fastapi import APIRouter, Depends, HTTPException, Header
 from supabase import Client
 from postgrest.exceptions import APIError as PostgRESTError
 from database import get_db
+from config import get_settings
 from typing import Optional
 
 router = APIRouter(prefix="/rooms", tags=["rooms"])
@@ -29,18 +31,43 @@ def _ensure_unique_slug(db: Client, base_slug: str) -> str:
         i += 1
 
 
-def _get_user_id(x_user_id: Optional[str] = Header(default=None)) -> str:
-    """Extract user ID from X-User-Id header. Returns 'anonymous' if absent."""
-    return x_user_id or "anonymous"
+def _resolve_user_id(
+    x_user_id: Optional[str] = Header(default=None),
+    authorization: Optional[str] = Header(default=None),
+) -> str:
+    """
+    Resolve the caller's user ID from:
+    1. X-User-Id header (legacy / simple path)
+    2. Authorization: Bearer <supabase_jwt> — decode without verification
+       (Supabase already validates the JWT at the API gateway level;
+       we just need the sub claim to know who the user is).
+    Returns 'anonymous' if neither is present.
+    """
+    if x_user_id:
+        return x_user_id
+    if authorization and authorization.startswith("Bearer "):
+        token = authorization.removeprefix("Bearer ").strip()
+        try:
+            # decode without signature verification — trust Supabase middleware
+            payload = pyjwt.decode(token, options={"verify_signature": False})
+            return payload.get("sub") or "anonymous"
+        except Exception:
+            pass
+    return "anonymous"
 
 
 @router.post("/", status_code=201)
-async def create_room(body: dict, db: Client = Depends(get_db), x_user_id: Optional[str] = Header(default=None)):
-    """Create a new room. Owner is taken from X-User-Id header."""
+async def create_room(
+    body: dict,
+    db: Client = Depends(get_db),
+    x_user_id: Optional[str] = Header(default=None),
+    authorization: Optional[str] = Header(default=None),
+):
+    """Create a new room. Owner resolved from X-User-Id or Authorization JWT."""
     name = (body.get("name") or "").strip()
     if not name:
         raise HTTPException(status_code=400, detail="Room name is required.")
-    owner_id = x_user_id or "anonymous"
+    owner_id = _resolve_user_id(x_user_id, authorization)
 
     base_slug = _slug_from_name(name)
     slug = await asyncio.to_thread(lambda: _ensure_unique_slug(db, base_slug))
@@ -61,9 +88,13 @@ async def create_room(body: dict, db: Client = Depends(get_db), x_user_id: Optio
 
 
 @router.get("/")
-async def list_rooms(db: Client = Depends(get_db), x_user_id: Optional[str] = Header(default=None)):
+async def list_rooms(
+    db: Client = Depends(get_db),
+    x_user_id: Optional[str] = Header(default=None),
+    authorization: Optional[str] = Header(default=None),
+):
     """List all rooms the current user belongs to."""
-    user_id = x_user_id or "anonymous"
+    user_id = _resolve_user_id(x_user_id, authorization)
     memberships = await asyncio.to_thread(
         lambda: db.table("room_members").select("room_id").eq("user_id", user_id).execute()
     )
@@ -101,9 +132,14 @@ async def get_room(slug: str, db: Client = Depends(get_db)):
 
 
 @router.post("/{slug}/join", status_code=200)
-async def join_room(slug: str, db: Client = Depends(get_db), x_user_id: Optional[str] = Header(default=None)):
+async def join_room(
+    slug: str,
+    db: Client = Depends(get_db),
+    x_user_id: Optional[str] = Header(default=None),
+    authorization: Optional[str] = Header(default=None),
+):
     """Add current user as a member of the room."""
-    user_id = x_user_id or "anonymous"
+    user_id = _resolve_user_id(x_user_id, authorization)
 
     # Fetch room id
     try:

@@ -26,6 +26,7 @@ interface ActionItem {
 interface Props {
     noteId: string;
     content: string;
+    open?: boolean;
     onTagsGenerated?: (tags: string[]) => void;
 }
 
@@ -63,7 +64,7 @@ function Section({
     );
 }
 
-export function ContextPanel({ noteId, content, onTagsGenerated }: Props) {
+export function ContextPanel({ noteId, content, open = false, onTagsGenerated }: Props) {
     const [related, setRelated] = useState<NoteListItem[]>([]);
     const [tags, setTags] = useState<string[]>([]);
     const [tagInput, setTagInput] = useState("");
@@ -73,6 +74,7 @@ export function ContextPanel({ noteId, content, onTagsGenerated }: Props) {
     const [loadingFlash, setLoadingFlash] = useState(false);
     const [expanded, setExpanded] = useState<string[]>([]);
     const [loadingExpand, setLoadingExpand] = useState(false);
+    const [aiError, setAiError] = useState<string | null>(null);
     const [linkSuggestions, setLinkSuggestions] = useState<NoteListItem[]>([]);
     const [actions, setActions] = useState<ActionItem[]>([]);
     const [doneTasks, setDoneTasks] = useState<Set<string>>(new Set());
@@ -134,6 +136,7 @@ export function ContextPanel({ noteId, content, onTagsGenerated }: Props) {
 
     const handleGenerateTags = async () => {
         setLoadingTags(true);
+        setAiError(null);
         try {
             const { tags: newTags } = await aiApi.generateTags(content);
             const toAdd = newTags.filter((t) => !tags.includes(t));
@@ -146,8 +149,7 @@ export function ContextPanel({ noteId, content, onTagsGenerated }: Props) {
             onTagsGenerated?.(newTags);
         } catch (err: unknown) {
             const status = (err as { response?: { status?: number } })?.response?.status;
-            if (status === 429) alert("Rate limit reached — wait a moment and try again.");
-            else alert("AI error — please check the backend.");
+            setAiError(status === 429 ? "Rate limit reached — wait a moment." : "AI error — check the backend.");
         } finally {
             setLoadingTags(false);
         }
@@ -162,26 +164,26 @@ export function ContextPanel({ noteId, content, onTagsGenerated }: Props) {
 
     const handleFlashcards = async () => {
         setLoadingFlash(true);
+        setAiError(null);
         try {
             const { flashcards: cards } = await aiApi.flashcards(content);
             setFlashcards(cards);
         } catch (err: unknown) {
             const status = (err as { response?: { status?: number } })?.response?.status;
-            if (status === 429) alert("Rate limit reached — wait a moment and try again.");
-            else alert("AI error — please check the backend.");
+            setAiError(status === 429 ? "Rate limit reached — wait a moment." : "AI error — check the backend.");
         } finally { setLoadingFlash(false); }
     };
 
     const handleExpandIdea = async () => {
         const snippet = content.replace(/<[^>]*>/g, "").slice(0, 300);
         setLoadingExpand(true);
+        setAiError(null);
         try {
             const { expanded: items } = await aiApi.expandIdea(snippet);
             setExpanded(items);
         } catch (err: unknown) {
             const status = (err as { response?: { status?: number } })?.response?.status;
-            if (status === 429) alert("Rate limit reached — wait a moment and try again.");
-            else alert("AI error — please check the backend.");
+            setAiError(status === 429 ? "Rate limit reached — wait a moment." : "AI error — check the backend.");
         } finally { setLoadingExpand(false); }
     };
 
@@ -198,10 +200,15 @@ export function ContextPanel({ noteId, content, onTagsGenerated }: Props) {
     };
 
     return (
-        <aside className="context-panel">
+        <aside className={`context-panel${open ? "" : " panel-collapsed"}`}>
 
             {/* AI Actions */}
             <Section title="AI Actions" icon={<Zap size={11} />} defaultOpen={true}>
+                {aiError && (
+                    <div style={{ fontSize: "11.5px", color: "var(--accent-error)", padding: "6px 8px", background: "rgba(239,68,68,0.08)", borderRadius: "var(--radius-sm)", border: "1px solid rgba(239,68,68,0.2)", marginBottom: "6px" }}>
+                        {aiError}
+                    </div>
+                )}
                 <div style={{ display: "flex", flexDirection: "column", gap: "5px" }}>
                     <button
                         className="btn btn-ghost btn-sm"

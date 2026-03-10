@@ -108,6 +108,7 @@ class ChatMessage(BaseModel):
 class ChatRequest(BaseModel):
     messages: list[ChatMessage]
     note_ids: Optional[list[str]] = None
+    user_id: Optional[str] = None  # if provided, messages are persisted to chat_messages table
 
 class ChatResponse(BaseModel):
     reply: str

@@ -1,4 +1,5 @@
 "use client";
+export const dynamic = "force-dynamic";
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -38,7 +39,7 @@ export default function DashboardPage() {
             const note = await notesApi.create("Untitled", "");
             router.push(`/notes/${note.id}`);
         } catch {
-            alert("Backend not connected. Please start the API server.");
+            // Backend offline — silently fail; user will see the empty state
         } finally {
             setCreating(false);
         }

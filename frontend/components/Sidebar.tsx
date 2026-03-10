@@ -5,6 +5,8 @@ import { useRouter, usePathname } from "next/navigation";
 import { notesApi, type NoteListItem } from "@/lib/api";
 import { CommandPalette } from "@/components/CommandPalette";
 import { TemplateSelector, type Template } from "@/components/TemplateSelector";
+import { createClient } from "@/lib/supabase";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import {
     FileText,
     GitBranch,
@@ -23,6 +25,9 @@ import {
     ChevronDown,
     MessageSquare,
     Network,
+    LogOut,
+    User,
+    TrendingUp,
 } from "lucide-react";
 
 const EXPLORE_ITEMS = [
@@ -32,6 +37,7 @@ const EXPLORE_ITEMS = [
     { label: "Search Notes", icon: Search, href: null, action: "search" },
     { label: "Topic Clusters", icon: Layers, href: "/clusters" },
     { label: "AI Chat", icon: MessageSquare, href: "/chat" },
+    { label: "Trends", icon: TrendingUp, href: "/trends" },
 ];
 
 function timeAgo(dateStr: string) {
@@ -54,6 +60,47 @@ export function Sidebar() {
     const [templateOpen, setTemplateOpen] = useState(false);
     const [exploreOpen, setExploreOpen] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
+    const [userMenuOpen, setUserMenuOpen] = useState(false);
+    const [userEmail, setUserEmail] = useState<string | null>(null);
+    const [profileEditOpen, setProfileEditOpen] = useState(false);
+    const [profileUsername, setProfileUsername] = useState("");
+    const [profileAge, setProfileAge] = useState("");
+    const [profileSaving, setProfileSaving] = useState(false);
+
+    // Load current user info
+    useEffect(() => {
+        const supabase = createClient();
+        supabase.auth.getUser().then(({ data }) => {
+            if (data.user?.email) setUserEmail(data.user.email);
+        });
+    }, []);
+
+    const handleLogout = async () => {
+        const supabase = createClient();
+        await supabase.auth.signOut();
+        router.push("/auth");
+    };
+
+    const handleProfileSave = async () => {
+        if (!profileUsername.trim()) return;
+        setProfileSaving(true);
+        try {
+            const supabase = createClient();
+            const { data: { user } } = await supabase.auth.getUser();
+            if (!user) return;
+            await supabase.from("profiles").upsert({
+                id: user.id,
+                username: profileUsername.trim(),
+                age: profileAge ? parseInt(profileAge, 10) : null,
+            });
+            setProfileEditOpen(false);
+            setUserMenuOpen(false);
+        } catch {
+            // Profile save failed — silently ignore; modal closes only on success
+        } finally {
+            setProfileSaving(false);
+        }
+    };
 
     const loadNotes = useCallback(async () => {
         try {
@@ -101,7 +148,7 @@ export function Sidebar() {
             router.push(`/notes/${note.id}`);
             setMobileOpen(false);
         } catch {
-            alert("Backend not connected. Please start the API server.");
+            // Backend offline — silently fail; creating state resets so user can retry
         } finally {
             setCreating(false);
         }
@@ -253,17 +300,115 @@ export function Sidebar() {
                 })}
             </div>
 
-            {/* Settings at bottom */}
-            <div style={{ padding: "2px 8px 10px", marginTop: "auto" }}>
+            {/* User menu at bottom */}
+            <div style={{ padding: "2px 8px 4px", marginTop: "auto", position: "relative" }}>
+                <button
+                    className="nav-item"
+                    onClick={() => setUserMenuOpen((o) => !o)}
+                    title={collapsed ? (userEmail || "Account") : undefined}
+                    style={{ width: "100%" }}
+                >
+                    <User size={14} />
+                    {!collapsed && (
+                        <span className="nav-label" style={{ flex: 1, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "12px" }}>
+                            {userEmail ? userEmail.split("@")[0] : "Account"}
+                        </span>
+                    )}
+                </button>
+
+                {userMenuOpen && (
+                    <div style={{
+                        position: "absolute",
+                        bottom: "100%",
+                        left: 8,
+                        right: 8,
+                        background: "var(--bg-elevated)",
+                        border: "1px solid var(--border-light)",
+                        borderRadius: "var(--radius-md)",
+                        boxShadow: "var(--shadow-lg)",
+                        padding: "6px",
+                        zIndex: 200,
+                        animation: "fadeIn 0.12s var(--ease)",
+                    }}>
+                        {userEmail && (
+                            <div style={{ padding: "6px 8px 8px", fontSize: "11px", color: "var(--text-muted)", borderBottom: "1px solid var(--border)", marginBottom: "4px" }}>
+                                {userEmail}
+                            </div>
+                        )}
+                        <button
+                            className="nav-item"
+                            style={{ width: "100%", fontSize: "12.5px" }}
+                            onClick={() => { setProfileEditOpen(true); setUserMenuOpen(false); }}
+                        >
+                            <User size={13} />
+                            <span className="nav-label">Edit Profile</span>
+                        </button>
+                        <button
+                            className="nav-item"
+                            style={{ width: "100%", fontSize: "12.5px", color: "var(--accent-danger, #ef4444)" }}
+                            onClick={handleLogout}
+                        >
+                            <LogOut size={13} />
+                            <span className="nav-label">Log Out</span>
+                        </button>
+                    </div>
+                )}
+            </div>
+
+            {/* Settings + theme toggle at bottom */}
+            <div style={{ padding: "2px 8px 10px", display: "flex", alignItems: "center", gap: "4px" }}>
                 <button
                     className={`nav-item${pathname === "/settings" ? " active" : ""}`}
                     onClick={() => handleNavClick("/settings")}
                     title={collapsed ? "Settings" : undefined}
+                    style={{ flex: 1 }}
                 >
                     <Settings size={14} />
                     {!collapsed && <span className="nav-label">Settings</span>}
                 </button>
+                <ThemeToggle />
             </div>
+
+            {/* Profile edit modal */}
+            {profileEditOpen && (
+                <div
+                    style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.65)", backdropFilter: "blur(6px)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}
+                    onClick={() => setProfileEditOpen(false)}
+                >
+                    <div
+                        style={{ background: "var(--bg-elevated)", border: "1px solid var(--border-light)", borderRadius: "var(--radius-lg)", padding: "28px", width: 360, boxShadow: "var(--shadow-lg)", animation: "paletteIn 0.15s var(--ease)" }}
+                        onClick={(e) => e.stopPropagation()}
+                    >
+                        <div style={{ fontSize: "15px", fontWeight: 700, color: "var(--text-primary)", marginBottom: "18px" }}>Edit Profile</div>
+                        <label style={{ display: "block", fontSize: "12px", color: "var(--text-muted)", marginBottom: "4px" }}>Username</label>
+                        <input
+                            value={profileUsername}
+                            onChange={(e) => setProfileUsername(e.target.value)}
+                            placeholder="your_username"
+                            autoFocus
+                            style={{ width: "100%", background: "var(--bg-tertiary)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", padding: "9px 12px", color: "var(--text-primary)", fontSize: "13.5px", fontFamily: "inherit", outline: "none", marginBottom: "12px", boxSizing: "border-box" }}
+                            onFocus={(e) => { e.currentTarget.style.borderColor = "var(--accent-primary)"; }}
+                            onBlur={(e) => { e.currentTarget.style.borderColor = "var(--border)"; }}
+                        />
+                        <label style={{ display: "block", fontSize: "12px", color: "var(--text-muted)", marginBottom: "4px" }}>Age (optional)</label>
+                        <input
+                            type="number"
+                            value={profileAge}
+                            onChange={(e) => setProfileAge(e.target.value)}
+                            placeholder="25"
+                            style={{ width: "100%", background: "var(--bg-tertiary)", border: "1px solid var(--border)", borderRadius: "var(--radius-md)", padding: "9px 12px", color: "var(--text-primary)", fontSize: "13.5px", fontFamily: "inherit", outline: "none", marginBottom: "20px", boxSizing: "border-box" }}
+                            onFocus={(e) => { e.currentTarget.style.borderColor = "var(--accent-primary)"; }}
+                            onBlur={(e) => { e.currentTarget.style.borderColor = "var(--border)"; }}
+                        />
+                        <div style={{ display: "flex", gap: "8px", justifyContent: "flex-end" }}>
+                            <button className="btn btn-ghost btn-sm" onClick={() => setProfileEditOpen(false)}>Cancel</button>
+                            <button className="btn btn-primary btn-sm" onClick={handleProfileSave} disabled={profileSaving || !profileUsername.trim()}>
+                                {profileSaving ? "Saving…" : "Save"}
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </aside>
     );
 

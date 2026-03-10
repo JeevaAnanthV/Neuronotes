@@ -1,11 +1,25 @@
 // API client for NeuroNotes backend
 import axios from "axios";
+import { createClient } from "@/lib/supabase";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
 
 export const api = axios.create({
     baseURL: API_BASE,
     headers: { "Content-Type": "application/json" },
+});
+
+// Attach the Supabase JWT to every backend request so the backend
+// can identify the user and filter data per-account.
+api.interceptors.request.use(async (config) => {
+    try {
+        const supabase = createClient();
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.access_token) {
+            config.headers["Authorization"] = `Bearer ${session.access_token}`;
+        }
+    } catch { /* not authenticated — request goes through without token */ }
+    return config;
 });
 
 // ── Types ──────────────────────────────────────────────────────────────────────
@@ -112,8 +126,8 @@ export const aiApi = {
         api.post<{ tags: string[] }>("/ai/tags", { content }).then((r) => r.data),
     flashcards: (content: string) =>
         api.post<{ flashcards: Flashcard[] }>("/ai/flashcards", { content }).then((r) => r.data),
-    chat: (messages: { role: string; content: string }[], note_ids?: string[]) =>
-        api.post<{ reply: string; sources: NoteListItem[] }>("/ai/chat", { messages, note_ids }).then((r) => r.data),
+    chat: (messages: { role: string; content: string }[], note_ids?: string[], user_id?: string) =>
+        api.post<{ reply: string; sources: NoteListItem[] }>("/ai/chat", { messages, note_ids, user_id }).then((r) => r.data),
     writingCoach: (text: string) =>
         api.post<{ suggestion: string }>("/ai/writing-coach", { text }).then((r) => r.data),
     extractActions: (content: string, note_id: string) =>

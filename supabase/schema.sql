@@ -195,7 +195,19 @@ create table if not exists room_notes (
     primary key (note_id, room_id)
 );
 
--- ── 13. Row-Level Security ────────────────────────────────────────────────────
+-- ── 13. Chat Messages (persistent AI chat history) ───────────────────────────
+create table if not exists chat_messages (
+    id         uuid primary key default gen_random_uuid(),
+    user_id    uuid not null,
+    role       text not null check (role in ('user', 'assistant')),
+    content    text not null,
+    created_at timestamptz not null default now()
+);
+
+create index if not exists chat_messages_user_id_idx on chat_messages(user_id);
+create index if not exists chat_messages_created_at_idx on chat_messages(created_at);
+
+-- ── 14. Row-Level Security ────────────────────────────────────────────────────
 -- The FastAPI backend connects with the service role key which bypasses RLS.
 -- RLS is currently disabled. To enable per-user isolation in a future iteration,
 -- uncomment the lines below and add appropriate policies.
@@ -205,3 +217,17 @@ create table if not exists room_notes (
 -- alter table note_tags   enable row level security;
 -- alter table note_links  enable row level security;
 -- alter table flashcards  enable row level security;
+
+-- ── 15. Profiles table (user onboarding data) ────────────────────────────────
+CREATE TABLE IF NOT EXISTS profiles (
+  id         UUID PRIMARY KEY REFERENCES auth.users(id) ON DELETE CASCADE,
+  username   TEXT UNIQUE NOT NULL,
+  age        INTEGER,
+  created_at TIMESTAMPTZ DEFAULT NOW()
+);
+
+ALTER TABLE profiles ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "Users can view own profile"   ON profiles FOR SELECT USING (auth.uid() = id);
+CREATE POLICY "Users can update own profile" ON profiles FOR UPDATE USING (auth.uid() = id);
+CREATE POLICY "Users can insert own profile" ON profiles FOR INSERT WITH CHECK (auth.uid() = id);

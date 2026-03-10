@@ -66,7 +66,7 @@ function AIToolbar({ text, position, onApply, onClose }: AIToolbarProps) {
             onApply(result);
             onClose();
         } catch {
-            alert("AI service unavailable.");
+            // AI unavailable — loading state resets so user can retry
         } finally {
             setLoading(false);
         }
@@ -271,7 +271,7 @@ function ImageImportPanel({ onExtracted, onClose }: ImageImportProps) {
             );
             onExtracted(res.data.extracted_text);
         } catch {
-            alert("Could not extract text from image. Check backend connection.");
+            // OCR failed — loading state resets, user can try again
         } finally {
             setLoading(false);
         }
@@ -495,6 +495,18 @@ export function Editor({ content, onChange, onSlashCommand }: Props) {
         },
         editorProps: {
             handleKeyDown: (view, event) => {
+                // Ctrl+K / Cmd+K — let the window listener handle it (CommandPalette)
+                if ((event.ctrlKey || event.metaKey) && event.key === "k") {
+                    // Re-dispatch on the window so Sidebar.tsx's handler fires
+                    window.dispatchEvent(new KeyboardEvent("keydown", {
+                        key: "k",
+                        ctrlKey: event.ctrlKey,
+                        metaKey: event.metaKey,
+                        bubbles: true,
+                    }));
+                    return true; // tell TipTap we handled it (suppress default)
+                }
+
                 if (event.key === "/") {
                     setTimeout(() => {
                         const sel = window.getSelection();
@@ -551,11 +563,48 @@ export function Editor({ content, onChange, onSlashCommand }: Props) {
         };
     }, []);
 
+    /**
+     * Convert a markdown string to minimal HTML before inserting into TipTap.
+     * TipTap is a rich-text editor — it renders HTML, not markdown syntax.
+     */
+    const markdownToHtml = (md: string): string => {
+        return md
+            // Headings
+            .replace(/^### (.+)$/gm, "<h3>$1</h3>")
+            .replace(/^## (.+)$/gm, "<h2>$1</h2>")
+            .replace(/^# (.+)$/gm, "<h1>$1</h1>")
+            // Bold + italic combo
+            .replace(/\*\*\*(.+?)\*\*\*/g, "<strong><em>$1</em></strong>")
+            // Bold
+            .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+            .replace(/__(.+?)__/g, "<strong>$1</strong>")
+            // Italic
+            .replace(/\*(.+?)\*/g, "<em>$1</em>")
+            .replace(/_(.+?)_/g, "<em>$1</em>")
+            // Inline code
+            .replace(/`(.+?)`/g, "<code>$1</code>")
+            // Unordered list items
+            .replace(/^\s*[-*+]\s+(.+)$/gm, "<li>$1</li>")
+            // Ordered list items
+            .replace(/^\s*\d+\.\s+(.+)$/gm, "<li>$1</li>")
+            // Wrap consecutive <li> tags in <ul>
+            .replace(/(<li>.*<\/li>\n?)+/g, (match) => `<ul>${match}</ul>`)
+            // Blockquote
+            .replace(/^>\s+(.+)$/gm, "<blockquote>$1</blockquote>")
+            // Horizontal rule
+            .replace(/^---+$/gm, "<hr>")
+            // Blank lines → paragraph breaks (simple pass)
+            .replace(/\n{2,}/g, "</p><p>")
+            // Single newlines → space
+            .replace(/\n/g, " ");
+    };
+
     const applyAIResult = useCallback(
         (result: string) => {
             if (!editor) return;
             const { from, to } = editor.state.selection;
-            editor.chain().focus().deleteRange({ from, to }).insertContent(result).run();
+            const html = markdownToHtml(result);
+            editor.chain().focus().deleteRange({ from, to }).insertContent(html).run();
         },
         [editor]
     );

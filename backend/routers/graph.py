@@ -9,10 +9,13 @@ router = APIRouter(prefix="/graph", tags=["graph"])
 
 
 @router.get("/", response_model=GraphData)
-async def get_graph(db: Client = Depends(get_db)):
+async def get_graph(db: Client = Depends(get_db), limit: int = 50):
+    """Return graph data. `limit` caps nodes for performance (default 50)."""
     notes_result = await asyncio.to_thread(
         lambda: db.table("notes")
         .select("id, title, note_tags(tag_id, tags(id, name))")
+        .order("updated_at", desc=True)
+        .limit(limit)
         .execute()
     )
     notes_raw = notes_result.data or []

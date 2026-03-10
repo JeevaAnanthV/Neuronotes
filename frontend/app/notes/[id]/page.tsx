@@ -1,4 +1,5 @@
 "use client";
+export const dynamic = "force-dynamic";
 
 import { useEffect, useState, useCallback, useRef } from "react";
 import { useParams, useRouter } from "next/navigation";
@@ -9,7 +10,7 @@ import { DailyInsights } from "@/components/DailyInsights";
 import { VoiceRecorder } from "@/components/VoiceRecorder";
 import { CollaborativeIndicator } from "@/components/CollaborativeIndicator";
 import { createClient } from "@/lib/supabase";
-import { Check, Loader2, Trash2, Cloud, Save } from "lucide-react";
+import { Check, Loader2, Trash2, Cloud, Save, PanelRight } from "lucide-react";
 
 const AUTOSAVE_DELAY = 1500;
 
@@ -28,8 +29,9 @@ export default function NotePage() {
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(true);
     const [loading, setLoading] = useState(true);
-    const [showInsights, setShowInsights] = useState(true);
+    const [showInsights, setShowInsights] = useState(false);
     const [realtimeToast, setRealtimeToast] = useState(false);
+    const [panelOpen, setPanelOpen] = useState(false);
     const saveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
     useEffect(() => {
@@ -121,7 +123,7 @@ export default function NotePage() {
         async (cmd: string) => {
             const plainText = content.replace(/<[^>]*>/g, "");
             if (!plainText.trim()) {
-                alert("Add some content first!");
+                // No content to act on — silently ignore
                 return;
             }
             try {
@@ -163,7 +165,7 @@ export default function NotePage() {
                         break;
                 }
             } catch {
-                alert("AI unavailable. Check backend connection.");
+                // AI unavailable — silently ignore, autosave state is unaffected
             }
         },
         [content, title, scheduleSave]
@@ -183,8 +185,33 @@ export default function NotePage() {
 
     if (loading) {
         return (
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--text-muted)" }}>
-                <span className="loading-spinner" style={{ marginRight: "10px" }} />
+            <div style={{ display: "flex", flex: 1, overflow: "hidden", minHeight: 0, minWidth: 0 }}>
+            <div className="editor-shell" style={{ padding: "0 20px" }}>
+                {/* Skeleton top bar */}
+                <div className="editor-topbar">
+                    <div style={{
+                        height: "28px",
+                        width: "240px",
+                        borderRadius: "6px",
+                        background: "var(--bg-tertiary)",
+                        animation: "skeletonPulse 1.4s ease-in-out infinite",
+                    }} />
+                </div>
+                {/* Skeleton body */}
+                <div className="editor-content">
+                    <div className="editor-body" style={{ display: "flex", flexDirection: "column", gap: "14px", paddingTop: "20px" }}>
+                        {[85, 65, 95, 50, 75, 40, 80].map((w, i) => (
+                            <div key={i} style={{
+                                height: i === 0 ? "22px" : "14px",
+                                width: `${w}%`,
+                                borderRadius: "6px",
+                                background: "var(--bg-tertiary)",
+                                animation: `skeletonPulse 1.4s ease-in-out ${i * 0.08}s infinite`,
+                            }} />
+                        ))}
+                    </div>
+                </div>
+            </div>
             </div>
         );
     }
@@ -198,7 +225,7 @@ export default function NotePage() {
     const noteIsEmpty = isNoteEmpty(title, content);
 
     return (
-        <>
+        <div style={{ display: "flex", flex: 1, overflow: "hidden", minHeight: 0, minWidth: 0 }}>
             <div className="editor-shell">
                 {/* Realtime toast */}
                 {realtimeToast && (
@@ -275,6 +302,14 @@ export default function NotePage() {
                         <VoiceRecorder onNoteCreated={handleVoiceNote} />
                         <button
                             className="btn-icon"
+                            onClick={() => setPanelOpen((o) => !o)}
+                            title={panelOpen ? "Hide AI panel" : "Show AI panel"}
+                            style={{ color: panelOpen ? "var(--accent-primary)" : "var(--text-muted)" }}
+                        >
+                            <PanelRight size={15} />
+                        </button>
+                        <button
+                            className="btn-icon"
                             onClick={handleDelete}
                             title="Delete note"
                             id="delete-note-btn"
@@ -346,7 +381,7 @@ export default function NotePage() {
                 </div>
             </div>
 
-            <ContextPanel noteId={id} content={content} />
-        </>
+            <ContextPanel noteId={id} content={content} open={panelOpen} />
+        </div>
     );
 }

@@ -12,11 +12,13 @@ import {
   Mic,
   BookOpen,
   BarChart2,
+  type LucideProps,
 } from 'lucide-react-native';
+import { type ComponentType } from 'react';
 import { colors, spacing, radius, fontSize, fontWeight } from '@/constants/theme';
 
 interface FeatureCard {
-  icon: React.ComponentType<{ size?: number; color?: string }>;
+  icon: ComponentType<LucideProps>;
   label: string;
   description: string;
   href: string;

@@ -3,6 +3,7 @@ version: "3.9"
 # NeuroNotes — Full-stack with Supabase cloud DB
 # Backend uses Supabase HTTPS REST API (no local postgres needed)
 # Set SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, GEMINI_API_KEY in backend/.env
+# Set NEXT_PUBLIC_* vars in root .env (gitignored)
 
 services:
   backend:
@@ -20,11 +21,18 @@ services:
     build:
       context: ./frontend
       dockerfile: Dockerfile
+      args:
+        NEXT_PUBLIC_SUPABASE_URL: ${NEXT_PUBLIC_SUPABASE_URL}
+        NEXT_PUBLIC_SUPABASE_ANON_KEY: ${NEXT_PUBLIC_SUPABASE_ANON_KEY}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8001}
+        NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:2323}
     container_name: neuronotes_frontend
     restart: unless-stopped
     depends_on:
       - backend
+    env_file:
+      - .env
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8001
+      NEXT_PUBLIC_SITE_URL: ${NEXT_PUBLIC_SITE_URL:-http://localhost:2323}
     ports:
       - "2323:3000"

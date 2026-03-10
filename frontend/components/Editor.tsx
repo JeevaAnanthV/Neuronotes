@@ -35,6 +35,7 @@ interface AIToolbarProps {
 function AIToolbar({ text, position, onApply, onClose }: AIToolbarProps) {
     const [loading, setLoading] = useState(false);
     const ref = useRef<HTMLDivElement>(null);
+    const isMobile = typeof window !== "undefined" && window.innerWidth < 768;
 
     useEffect(() => {
         const handler = (e: MouseEvent) => {
@@ -57,11 +58,17 @@ function AIToolbar({ text, position, onApply, onClose }: AIToolbarProps) {
         }
     };
 
+    // Fix 4: On mobile, dock the toolbar to the bottom above the nav bar
+    // instead of using cursor-relative coordinates (which break with virtual keyboard).
+    const mobileStyle = isMobile
+        ? { position: "fixed" as const, bottom: 72, left: "50%", transform: "translateX(-50%)", top: "auto", width: "calc(100vw - 32px)", maxWidth: 480 }
+        : { left: position.x, top: position.y };
+
     return (
         <div
             ref={ref}
             className="ai-toolbar"
-            style={{ left: position.x, top: position.y }}
+            style={mobileStyle}
         >
             {loading ? (
                 <div style={{ padding: "8px 16px", display: "flex", alignItems: "center", gap: "8px" }}>
@@ -186,7 +193,15 @@ export function Editor({ content, onChange, onSlashCommand }: Props) {
     const [slashMenu, setSlashMenu] = useState<{ pos: { x: number; y: number } } | null>(null);
     const [showAiHint, setShowAiHint] = useState(false);
     const [ghostSuggestion, setGhostSuggestion] = useState<string | null>(null);
+    const [isMobileView, setIsMobileView] = useState(false);
     const editorRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+        const checkMobile = () => setIsMobileView(window.innerWidth < 768);
+        checkMobile();
+        window.addEventListener("resize", checkMobile);
+        return () => window.removeEventListener("resize", checkMobile);
+    }, []);
     const hintTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
     const coachTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -327,7 +342,7 @@ export function Editor({ content, onChange, onSlashCommand }: Props) {
                         letterSpacing: "0.04em",
                     }}>AI</span>
                     <span>{ghostSuggestion}</span>
-                    <span style={{ fontSize: "11px", color: "var(--text-muted)", fontStyle: "normal" }}>Tab to accept · Esc to dismiss</span>
+                    <span style={{ fontSize: "11px", color: "var(--text-muted)", fontStyle: "normal" }}>{isMobileView ? "Tap to insert" : "Tab to accept · Esc to dismiss"}</span>
                 </div>
             )}
             {showAiHint && (

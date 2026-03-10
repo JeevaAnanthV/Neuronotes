@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useRef } from "react";
 import { notesApi, aiApi, type NoteListItem } from "@/lib/api";
-import { Send, HelpCircle, BookOpen } from "lucide-react";
+import { Send, HelpCircle, BookOpen, X, SlidersHorizontal } from "lucide-react";
 
 interface Message {
     role: "user" | "assistant";
@@ -18,6 +18,7 @@ export default function QAPage() {
     const [input, setInput] = useState("");
     const [loading, setLoading] = useState(false);
     const [loadingNotes, setLoadingNotes] = useState(true);
+    const [showNoteSelector, setShowNoteSelector] = useState(false);
     const bottomRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
@@ -59,7 +60,7 @@ export default function QAPage() {
     return (
         <div style={{ display: "flex", height: "100%", overflow: "hidden" }}>
             {/* Left: note selection */}
-            <div style={{
+            <div className={`qa-note-selector${showNoteSelector ? " open" : ""}`} style={{
                 width: "clamp(180px, 28vw, 260px)",
                 flexShrink: 0,
                 borderRight: "1px solid var(--border)",
@@ -67,6 +68,27 @@ export default function QAPage() {
                 flexDirection: "column",
                 overflow: "hidden",
             }}>
+                {/* Mobile close button for the selector panel */}
+                <button
+                    onClick={() => setShowNoteSelector(false)}
+                    style={{
+                        display: "none",
+                        position: "absolute",
+                        top: 12,
+                        right: 12,
+                        background: "var(--bg-hover)",
+                        border: "1px solid var(--border)",
+                        borderRadius: "var(--radius-md)",
+                        color: "var(--text-secondary)",
+                        cursor: "pointer",
+                        padding: "8px",
+                        zIndex: 860,
+                    }}
+                    className="qa-selector-close"
+                    aria-label="Close note selector"
+                >
+                    <X size={16} />
+                </button>
                 <div style={{ padding: "16px", borderBottom: "1px solid var(--border)" }}>
                     <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "10px", display: "flex", alignItems: "center", gap: "7px" }}>
                         <BookOpen size={14} /> Context Notes
@@ -121,7 +143,29 @@ export default function QAPage() {
                 {/* Header */}
                 <div style={{ padding: "14px 20px", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "center", gap: "9px" }}>
                     <HelpCircle size={17} color="var(--accent-primary)" />
-                    <span style={{ fontSize: "15px", fontWeight: 700, color: "var(--text-primary)" }}>Cross-Note Q&A</span>
+                    <span style={{ fontSize: "15px", fontWeight: 700, color: "var(--text-primary)", flex: 1 }}>Cross-Note Q&A</span>
+                    {/* Mobile: button to open note selector panel */}
+                    <button
+                        className="qa-context-btn"
+                        onClick={() => setShowNoteSelector(true)}
+                        style={{
+                            display: "none",
+                            alignItems: "center",
+                            gap: "6px",
+                            padding: "7px 12px",
+                            background: "var(--bg-tertiary)",
+                            border: "1px solid var(--border)",
+                            borderRadius: "var(--radius-md)",
+                            color: "var(--text-secondary)",
+                            fontSize: "12px",
+                            cursor: "pointer",
+                            fontFamily: "inherit",
+                        }}
+                        aria-label="Select context notes"
+                    >
+                        <SlidersHorizontal size={13} />
+                        Context
+                    </button>
                 </div>
 
                 {/* Messages */}

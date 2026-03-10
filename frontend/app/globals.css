@@ -74,7 +74,7 @@ html, body {
 /* ── App Shell ───────────────────────────────────────────────────────────────── */
 .app-shell {
   display: flex;
-  height: 100vh;
+  height: 100dvh;
   overflow: hidden;
 }
 
@@ -132,6 +132,8 @@ html, body {
 .sidebar-collapse-btn {
   width: 24px;
   height: 24px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: var(--radius-sm);
   border: none;
   background: transparent;
@@ -413,6 +415,8 @@ html, body {
   align-items: center;
   gap: 6px;
   padding: 6px 10px;
+  min-height: 44px;
+  min-width: 44px;
   border-radius: 7px;
   border: none;
   background: transparent;
@@ -455,6 +459,7 @@ html, body {
   justify-content: space-between;
   cursor: pointer;
   padding: 2px 0;
+  min-height: 44px;
 }
 
 .panel-section-title {
@@ -507,6 +512,8 @@ html, body {
 .btn-sm { padding: 4px 10px; font-size: 12px; border-radius: var(--radius-sm); }
 .btn-icon {
   padding: 7px;
+  min-width: 44px;
+  min-height: 44px;
   border-radius: var(--radius-md);
   background: transparent;
   border: none;
@@ -515,6 +522,7 @@ html, body {
   transition: all 120ms cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   align-items: center;
+  justify-content: center;
 }
 .btn-icon:hover { background: var(--bg-hover); color: var(--text-primary); }
 
@@ -848,6 +856,57 @@ html, body {
 
 /* ── Mobile ──────────────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
+  /* Fix 1: Allow scrolling on mobile — override desktop overflow:hidden */
+  html, body {
+    overflow: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  /* Fix 1 + Fix 4: app-shell uses auto height on mobile */
+  .app-shell {
+    overflow: auto;
+    height: auto;
+    min-height: 100dvh;
+  }
+
+  /* Allow app content to scroll vertically on mobile */
+  .app-shell-content {
+    overflow: visible;
+    height: auto;
+  }
+
+  /* Fix 3: AI toolbar docks to bottom on mobile (avoids virtual keyboard overlap) */
+  .ai-toolbar {
+    left: 8px !important;
+    right: 8px !important;
+    top: auto !important;
+    bottom: 80px !important;
+    width: auto !important;
+  }
+
+  /* Fix 5: Q&A note selector hidden by default on mobile */
+  .qa-note-selector {
+    display: none !important;
+  }
+  .qa-note-selector.open {
+    display: flex !important;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 850;
+    background: var(--bg-secondary);
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .qa-selector-close {
+    display: flex !important;
+  }
+  .qa-context-btn {
+    display: flex !important;
+  }
+
   :root {
     --sidebar-width: 260px;
     --panel-width: 100%;

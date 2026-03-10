@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useRouter } from "next/navigation";
-import { FileText, Search, MessageSquare, GitBranch } from "lucide-react";
+import { FileText, Search, MessageSquare, GitBranch, Brain } from "lucide-react";
 import { useState } from "react";
 import { CommandPalette } from "@/components/CommandPalette";
 
@@ -10,6 +10,7 @@ const MOBILE_NAV = [
     { label: "Search", icon: Search, href: null, action: "search" },
     { label: "AI Chat", icon: MessageSquare, href: "/chat" },
     { label: "Graph", icon: GitBranch, href: "/graph" },
+    { label: "Flashcards", icon: Brain, href: "/flashcards" },
 ];
 
 export function MobileNav() {

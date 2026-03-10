@@ -26,7 +26,7 @@ export function AppShell({ children, sidebar, mobileNav, floatingAI }: AppShellP
     <>
       <div className="app-shell">
         {sidebar}
-        <div style={{ flex: 1, overflow: "hidden", display: "flex", minWidth: 0 }}>
+        <div className="app-shell-content" style={{ flex: 1, overflow: "hidden", display: "flex", minWidth: 0 }}>
           {children}
         </div>
       </div>

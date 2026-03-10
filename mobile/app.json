@@ -1,0 +1,42 @@
+{
+  "expo": {
+    "name": "NeuroNotes",
+    "slug": "neuronotes",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "scheme": "neuronotes",
+    "userInterfaceStyle": "dark",
+    "backgroundColor": "#0A0A0A",
+    "splash": {
+      "backgroundColor": "#0A0A0A",
+      "resizeMode": "contain"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.neuronotes.app",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "NeuroNotes uses your microphone to create voice notes transcribed by AI."
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "backgroundColor": "#0A0A0A"
+      },
+      "package": "com.neuronotes.app",
+      "permissions": ["RECORD_AUDIO"]
+    },
+    "plugins": [
+      "expo-router",
+      "expo-av",
+      [
+        "expo-build-properties",
+        {
+          "android": { "compileSdkVersion": 34 }
+        }
+      ]
+    ],
+    "experiments": {
+      "typedRoutes": true
+    }
+  }
+}

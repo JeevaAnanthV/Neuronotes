@@ -91,6 +91,31 @@ async def generate_json(prompt: str, system: str | None = None) -> Any:
         return {}
 
 
+async def extract_text_from_image(image_b64: str, mime_type: str = "image/jpeg") -> str:
+    """Extract text from an image using Gemini vision (non-blocking)."""
+    import base64
+
+    def _extract():
+        image_data = base64.b64decode(image_b64)
+        response = _client.models.generate_content(
+            model=settings.chat_model,
+            contents=[
+                types.Part.from_bytes(data=image_data, mime_type=mime_type),
+                "Extract ALL text from this image accurately. "
+                "If it is handwriting, transcribe exactly. "
+                "If it is a whiteboard or diagram, describe the structure then transcribe all text. "
+                "Return ONLY the extracted text, cleanly formatted.",
+            ],
+        )
+        return response.text or ""
+
+    try:
+        return await asyncio.to_thread(_extract)
+    except Exception as exc:
+        _handle_gemini_error(exc)
+        return ""  # unreachable
+
+
 async def transcribe_audio(audio_bytes: bytes, mime_type: str = "audio/webm") -> str:
     """Transcribe audio using Gemini multimodal (non-blocking)."""
     def _transcribe():

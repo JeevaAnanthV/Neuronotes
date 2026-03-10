@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import uuid
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, UploadFile, File
@@ -462,6 +463,36 @@ async def fill_template(body: dict):
     )
     result = await gemini.generate(f"Fill this {template_type} template with relevant content.", system=system)
     return {"content": result}
+
+
+@router.post("/image-to-text")
+async def image_to_text(file: UploadFile = File(...)):
+    """Extract text from an image using Gemini vision (handwriting, whiteboards, documents)."""
+    image_bytes = await file.read()
+    mime_type = file.content_type or "image/jpeg"
+    image_b64 = base64.b64encode(image_bytes).decode()
+    extracted_text = await gemini.extract_text_from_image(image_b64, mime_type)
+    # Create a lightly structured version too
+    structured_prompt = (
+        f"Given this extracted text, format it cleanly with proper paragraphs and punctuation:\n\n{extracted_text}"
+    )
+    structured_content = await gemini.generate(structured_prompt) if extracted_text else ""
+    return {"extracted_text": extracted_text, "structured_content": structured_content}
+
+
+@router.post("/detect-events")
+async def detect_calendar_events(body: dict):
+    """Scan note content for dates, times, events, and deadlines."""
+    content = body.get("content", "")
+    if not content or len(content.replace("<", "").replace(">", "")) < 30:
+        return {"events": []}
+    data = await gemini.generate_json(
+        f"Extract calendar events, meetings, deadlines, or appointments from this note content. "
+        f'Return JSON: {{"events": [{{"title": "string", "date_hint": "string", "time_hint": "string", "description": "string"}}]}} '
+        f"If there are no events, return an empty list. "
+        f"Content: {content[:2000]}"
+    )
+    return {"events": data.get("events", [])}
 
 
 @router.post("/research", response_model=ResearchResponse)

@@ -66,13 +66,14 @@ async def request_id_and_logging(request: Request, call_next) -> Response:
     logger.info("%s %s %d (%.1fms) [%s]", request.method, request.url.path, response.status_code, duration_ms, request_id)
     return response
 
-from routers import notes, search, ai, graph, tags
+from routers import notes, search, ai, graph, tags, rooms
 
 app.include_router(notes.router)
 app.include_router(search.router)
 app.include_router(ai.router)
 app.include_router(graph.router)
 app.include_router(tags.router)
+app.include_router(rooms.router)
 
 
 @app.get("/health")

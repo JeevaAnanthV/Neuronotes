@@ -7,9 +7,7 @@ import { CommandPalette } from "@/components/CommandPalette";
 import { TemplateSelector, type Template } from "@/components/TemplateSelector";
 import {
     FileText,
-    Tag,
     GitBranch,
-    MessageSquare,
     Search,
     Settings,
     Plus,
@@ -17,23 +15,23 @@ import {
     ChevronLeft,
     ChevronRight,
     Lightbulb,
-    Menu,
     X,
-    Bell,
+    Menu,
+    Users,
     Layers,
-    HelpCircle,
+    GraduationCap,
+    ChevronDown,
+    MessageSquare,
+    Network,
 } from "lucide-react";
 
-const NAV = [
-    { label: "Notes", icon: FileText, href: "/", shortcut: null },
-    { label: "Tags", icon: Tag, href: "/tags", shortcut: null },
-    { label: "Graph", icon: GitBranch, href: "/graph", shortcut: null },
-    { label: "AI Chat", icon: MessageSquare, href: "/chat", shortcut: null },
-    { label: "Insights", icon: Lightbulb, href: "/insights", shortcut: null },
-    { label: "Flashcards", icon: Brain, href: "/flashcards", shortcut: null },
-    { label: "Q&A", icon: HelpCircle, href: "/qa", shortcut: null },
-    { label: "Reminders", icon: Bell, href: "/reminders", shortcut: null },
-    { label: "Topics", icon: Layers, href: "/clusters", shortcut: null },
+const EXPLORE_ITEMS = [
+    { label: "Knowledge Graph", icon: GitBranch, href: "/graph" },
+    { label: "AI Insights", icon: Lightbulb, href: "/insights" },
+    { label: "Flashcards", icon: GraduationCap, href: "/flashcards" },
+    { label: "Search Notes", icon: Search, href: null, action: "search" },
+    { label: "Topic Clusters", icon: Layers, href: "/clusters" },
+    { label: "AI Chat", icon: MessageSquare, href: "/chat" },
 ];
 
 function timeAgo(dateStr: string) {
@@ -54,6 +52,8 @@ export function Sidebar() {
     const [collapsed, setCollapsed] = useState(false);
     const [mobileOpen, setMobileOpen] = useState(false);
     const [templateOpen, setTemplateOpen] = useState(false);
+    const [exploreOpen, setExploreOpen] = useState(false);
+    const [searchQuery, setSearchQuery] = useState("");
 
     const loadNotes = useCallback(async () => {
         try {
@@ -70,7 +70,6 @@ export function Sidebar() {
         return () => clearInterval(interval);
     }, [loadNotes]);
 
-    // Keyboard shortcuts
     useEffect(() => {
         const handler = (e: KeyboardEvent) => {
             if ((e.ctrlKey || e.metaKey) && e.key === "k") {
@@ -81,7 +80,6 @@ export function Sidebar() {
                 e.preventDefault();
                 handleNewNote();
             }
-            // Ctrl+[ to toggle sidebar
             if ((e.ctrlKey || e.metaKey) && e.key === "[") {
                 e.preventDefault();
                 setCollapsed((c) => !c);
@@ -91,9 +89,7 @@ export function Sidebar() {
         return () => window.removeEventListener("keydown", handler);
     }, []);
 
-    const handleNewNote = () => {
-        setTemplateOpen(true);
-    };
+    const handleNewNote = () => setTemplateOpen(true);
 
     const handleTemplateSelect = async (template: Template) => {
         setTemplateOpen(false);
@@ -118,21 +114,40 @@ export function Sidebar() {
 
     const currentNoteId = pathname.startsWith("/notes/") ? pathname.split("/")[2] : null;
 
+    const filteredNotes = searchQuery.trim()
+        ? notes.filter((n) => (n.title || "Untitled").toLowerCase().includes(searchQuery.toLowerCase()))
+        : notes;
+
+    const isExploreActive = EXPLORE_ITEMS.some((i) => i.href && pathname === i.href);
+
     const sidebarContent = (
         <aside className={`sidebar${collapsed ? " collapsed" : ""}`}>
-            {/* Logo + Collapse Toggle */}
+            {/* Header */}
             <div className="sidebar-header">
                 <div className="sidebar-logo">
-                    <Brain size={15} color="white" />
+                    <Brain size={13} color="white" />
                 </div>
                 {!collapsed && <span className="sidebar-title">NeuroNotes</span>}
                 <button
                     className="sidebar-collapse-btn"
                     onClick={() => setCollapsed((c) => !c)}
-                    title={collapsed ? "Expand sidebar (Ctrl+[)" : "Collapse sidebar (Ctrl+[)"}
+                    title={collapsed ? "Expand (Ctrl+[)" : "Collapse (Ctrl+[)"}
                 >
-                    {collapsed ? <ChevronRight size={14} /> : <ChevronLeft size={14} />}
+                    {collapsed ? <ChevronRight size={13} /> : <ChevronLeft size={13} />}
                 </button>
+            </div>
+
+            {/* Search */}
+            <div className="sidebar-search">
+                <Search size={12} className="search-icon" />
+                <input
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    onFocus={() => !searchQuery && setPaletteOpen(true)}
+                    placeholder="Search notes…"
+                    readOnly={!searchQuery}
+                />
+                {!searchQuery && <span className="search-shortcut">⌘K</span>}
             </div>
 
             {/* New Note */}
@@ -140,76 +155,112 @@ export function Sidebar() {
                 className="sidebar-new-note"
                 onClick={handleNewNote}
                 disabled={creating}
-                id="new-note-btn"
                 title="New note (Ctrl+N)"
             >
-                {creating ? <span className="loading-spinner" style={{ width: 14, height: 14 }} /> : <Plus size={15} />}
+                {creating ? <span className="loading-spinner" style={{ width: 13, height: 13 }} /> : <Plus size={13} />}
                 {!collapsed && (creating ? "Creating…" : "New Note")}
             </button>
 
-            {/* Nav */}
-            <nav className="sidebar-nav">
-                {NAV.map((item) => {
+            {/* NOTES section */}
+            {!collapsed && <div className="sidebar-section-label">Notes</div>}
+
+            <div className="sidebar-notes">
+                {filteredNotes.length === 0 ? (
+                    !collapsed && (
+                        <div style={{ padding: "12px 4px", color: "var(--text-muted)", fontSize: "12.5px", textAlign: "center" }}>
+                            {searchQuery ? "No matches" : "No notes yet"}
+                        </div>
+                    )
+                ) : (
+                    filteredNotes.slice(0, 15).map((note) => (
+                        <div
+                            key={note.id}
+                            className={`note-item${currentNoteId === note.id ? " active" : ""}`}
+                            onClick={() => { router.push(`/notes/${note.id}`); setMobileOpen(false); }}
+                        >
+                            {!collapsed && (
+                                <>
+                                    <div className="note-item-title">{note.title || "Untitled"}</div>
+                                    <div className="note-item-date">{timeAgo(note.updated_at)}</div>
+                                </>
+                            )}
+                            {collapsed && (
+                                <div title={note.title || "Untitled"} style={{ display: "flex", justifyContent: "center" }}>
+                                    <FileText size={14} color="var(--text-muted)" />
+                                </div>
+                            )}
+                        </div>
+                    ))
+                )}
+            </div>
+
+            {/* Divider */}
+            <div className="sidebar-section-divider" />
+
+            {/* ROOMS section */}
+            <div className="sidebar-nav">
+                {!collapsed && <div className="sidebar-section-label" style={{ padding: "4px 4px 4px" }}>Rooms</div>}
+                <button
+                    className={`nav-item${pathname === "/rooms" || pathname.startsWith("/rooms/") ? " active" : ""}`}
+                    onClick={() => handleNavClick("/rooms")}
+                    title={collapsed ? "Rooms" : undefined}
+                >
+                    <Users size={14} />
+                    {!collapsed && <span className="nav-label">My Rooms</span>}
+                </button>
+            </div>
+
+            {/* Divider */}
+            <div className="sidebar-section-divider" />
+
+            {/* EXPLORE section */}
+            <div className="sidebar-nav" style={{ paddingBottom: "4px" }}>
+                {!collapsed && (
+                    <button
+                        className={`nav-item${isExploreActive ? " active" : ""}`}
+                        onClick={() => setExploreOpen((o) => !o)}
+                        style={{ fontWeight: 500 }}
+                    >
+                        <Network size={14} />
+                        <span className="nav-label">Explore</span>
+                        <ChevronDown size={11} style={{
+                            color: "var(--text-muted)",
+                            transform: exploreOpen ? "rotate(180deg)" : "none",
+                            transition: "transform 150ms var(--ease)",
+                        }} />
+                    </button>
+                )}
+                {(exploreOpen || collapsed) && EXPLORE_ITEMS.map((item) => {
                     const Icon = item.icon;
-                    const isActive = pathname === item.href;
+                    const isActive = item.href && pathname === item.href;
                     return (
                         <button
-                            key={item.href}
-                            className={`nav-item${isActive ? " active" : ""}`}
-                            onClick={() => handleNavClick(item.href)}
+                            key={item.label}
+                            className={`nav-item${collapsed ? "" : " explore-sub"}${isActive ? " active" : ""}`}
+                            onClick={() => {
+                                if (item.action === "search") {
+                                    setPaletteOpen(true);
+                                } else if (item.href) {
+                                    handleNavClick(item.href);
+                                }
+                            }}
                             title={collapsed ? item.label : undefined}
                         >
-                            <Icon size={16} />
+                            <Icon size={13} />
                             {!collapsed && <span className="nav-label">{item.label}</span>}
                         </button>
                     );
                 })}
-                <button
-                    className="nav-item"
-                    onClick={() => setPaletteOpen(true)}
-                    title={collapsed ? "Search (Ctrl+K)" : undefined}
-                >
-                    <Search size={16} />
-                    {!collapsed && (
-                        <>
-                            <span className="nav-label">Search</span>
-                            <span className="nav-shortcut">Ctrl+K</span>
-                        </>
-                    )}
-                </button>
-            </nav>
+            </div>
 
-            {/* Notes list */}
-            {!collapsed && (
-                <div className="sidebar-notes">
-                    <div className="sidebar-section-title">Recent Notes</div>
-                    {notes.length === 0 ? (
-                        <div style={{ padding: "16px", color: "var(--text-muted)", fontSize: "13px", textAlign: "center" }}>
-                            No notes yet
-                        </div>
-                    ) : (
-                        notes.slice(0, 10).map((note) => (
-                            <div
-                                key={note.id}
-                                className={`note-item${currentNoteId === note.id ? " active" : ""}`}
-                                onClick={() => { router.push(`/notes/${note.id}`); setMobileOpen(false); }}
-                            >
-                                <div className="note-item-title">{note.title || "Untitled"}</div>
-                                <div className="note-item-date">{timeAgo(note.updated_at)}</div>
-                            </div>
-                        ))
-                    )}
-                </div>
-            )}
-
-            {/* Settings */}
-            <div style={{ padding: "4px 8px 12px", marginTop: collapsed ? "auto" : 0 }}>
+            {/* Settings at bottom */}
+            <div style={{ padding: "2px 8px 10px", marginTop: "auto" }}>
                 <button
                     className={`nav-item${pathname === "/settings" ? " active" : ""}`}
                     onClick={() => handleNavClick("/settings")}
                     title={collapsed ? "Settings" : undefined}
                 >
-                    <Settings size={16} />
+                    <Settings size={14} />
                     {!collapsed && <span className="nav-label">Settings</span>}
                 </button>
             </div>
@@ -223,17 +274,19 @@ export function Sidebar() {
                 className="mobile-hamburger btn-icon"
                 style={{
                     position: "fixed",
-                    top: 12,
-                    left: 12,
+                    top: 10,
+                    left: 10,
                     zIndex: 900,
                     background: "var(--bg-elevated)",
                     border: "1px solid var(--border)",
                     borderRadius: "var(--radius-md)",
+                    minWidth: 36,
+                    minHeight: 36,
                 }}
                 onClick={() => setMobileOpen(true)}
                 aria-label="Open menu"
             >
-                <Menu size={18} />
+                <Menu size={17} />
             </button>
 
             {/* Mobile overlay */}
@@ -242,61 +295,39 @@ export function Sidebar() {
                 onClick={() => setMobileOpen(false)}
             />
 
-            {/* Desktop sidebar (normal flow) */}
-            <div style={{ display: "contents" }} className="desktop-sidebar">
+            {/* Desktop sidebar */}
+            <div style={{ display: "contents" }}>
                 {sidebarContent}
             </div>
 
-            {/* Mobile sidebar (fixed, slide-in) — rendered separately */}
+            {/* Mobile sidebar */}
             {mobileOpen && (
                 <div style={{ position: "fixed", top: 0, left: 0, bottom: 0, zIndex: 850 }}>
                     <aside className="sidebar mobile-open" style={{ height: "100vh" }}>
                         <div className="sidebar-header">
                             <div className="sidebar-logo">
-                                <Brain size={15} color="white" />
+                                <Brain size={13} color="white" />
                             </div>
                             <span className="sidebar-title">NeuroNotes</span>
-                            <button
-                                className="sidebar-collapse-btn"
-                                onClick={() => setMobileOpen(false)}
-                            >
-                                <X size={14} />
+                            <button className="sidebar-collapse-btn" onClick={() => setMobileOpen(false)}>
+                                <X size={13} />
                             </button>
                         </div>
-
-                        <button
-                            className="sidebar-new-note"
-                            onClick={handleNewNote}
-                            disabled={creating}
-                        >
-                            <Plus size={15} />
+                        <div className="sidebar-search">
+                            <Search size={12} className="search-icon" />
+                            <input
+                                placeholder="Search notes… ⌘K"
+                                onFocus={() => { setPaletteOpen(true); setMobileOpen(false); }}
+                                readOnly
+                            />
+                        </div>
+                        <button className="sidebar-new-note" onClick={handleNewNote} disabled={creating}>
+                            <Plus size={13} />
                             {creating ? "Creating…" : "New Note"}
                         </button>
-
-                        <nav className="sidebar-nav">
-                            {NAV.map((item) => {
-                                const Icon = item.icon;
-                                return (
-                                    <button
-                                        key={item.href}
-                                        className={`nav-item${pathname === item.href ? " active" : ""}`}
-                                        onClick={() => handleNavClick(item.href)}
-                                    >
-                                        <Icon size={16} />
-                                        <span className="nav-label">{item.label}</span>
-                                    </button>
-                                );
-                            })}
-                            <button className="nav-item" onClick={() => { setPaletteOpen(true); setMobileOpen(false); }}>
-                                <Search size={16} />
-                                <span className="nav-label">Search</span>
-                                <span className="nav-shortcut">Ctrl+K</span>
-                            </button>
-                        </nav>
-
+                        <div className="sidebar-section-label">Notes</div>
                         <div className="sidebar-notes">
-                            <div className="sidebar-section-title">Recent Notes</div>
-                            {notes.slice(0, 10).map((note) => (
+                            {notes.slice(0, 15).map((note) => (
                                 <div
                                     key={note.id}
                                     className={`note-item${currentNoteId === note.id ? " active" : ""}`}
@@ -307,13 +338,37 @@ export function Sidebar() {
                                 </div>
                             ))}
                         </div>
-
-                        <div style={{ padding: "4px 8px 12px" }}>
-                            <button
-                                className={`nav-item${pathname === "/settings" ? " active" : ""}`}
-                                onClick={() => handleNavClick("/settings")}
-                            >
-                                <Settings size={16} />
+                        <div className="sidebar-section-divider" />
+                        <div className="sidebar-nav">
+                            <div className="sidebar-section-label" style={{ padding: "4px 4px 4px" }}>Rooms</div>
+                            <button className={`nav-item${pathname.startsWith("/rooms") ? " active" : ""}`} onClick={() => handleNavClick("/rooms")}>
+                                <Users size={14} />
+                                <span className="nav-label">My Rooms</span>
+                            </button>
+                        </div>
+                        <div className="sidebar-section-divider" />
+                        <div className="sidebar-nav">
+                            <div className="sidebar-section-label" style={{ padding: "4px 4px 4px" }}>Explore</div>
+                            {EXPLORE_ITEMS.map((item) => {
+                                const Icon = item.icon;
+                                return (
+                                    <button
+                                        key={item.label}
+                                        className={`nav-item explore-sub${item.href && pathname === item.href ? " active" : ""}`}
+                                        onClick={() => {
+                                            if (item.action === "search") { setPaletteOpen(true); setMobileOpen(false); }
+                                            else if (item.href) handleNavClick(item.href);
+                                        }}
+                                    >
+                                        <Icon size={13} />
+                                        <span className="nav-label">{item.label}</span>
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        <div style={{ padding: "2px 8px 10px", marginTop: "auto" }}>
+                            <button className={`nav-item${pathname === "/settings" ? " active" : ""}`} onClick={() => handleNavClick("/settings")}>
+                                <Settings size={14} />
                                 <span className="nav-label">Settings</span>
                             </button>
                         </div>

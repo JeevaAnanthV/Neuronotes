@@ -151,3 +151,83 @@ export const graphApi = {
     recompute: (threshold = 0.72) =>
         api.post<{ links_created: number }>("/graph/recompute", null, { params: { threshold } }).then((r) => r.data),
 };
+
+// ── Image & Calendar API ───────────────────────────────────────────────────────
+
+export interface ImageToTextResult {
+    extracted_text: string;
+    structured_content: string;
+}
+
+export interface CalendarEvent {
+    title: string;
+    date_hint: string;
+    time_hint: string;
+    description: string;
+}
+
+export const imageApi = {
+    imageToText: (file: File): Promise<ImageToTextResult> => {
+        const formData = new FormData();
+        formData.append("file", file);
+        return api
+            .post<ImageToTextResult>("/ai/image-to-text", formData, {
+                headers: { "Content-Type": "multipart/form-data" },
+            })
+            .then((r) => r.data);
+    },
+    detectEvents: (content: string): Promise<{ events: CalendarEvent[] }> =>
+        api.post<{ events: CalendarEvent[] }>("/ai/detect-events", { content }).then((r) => r.data),
+};
+
+// ── Rooms API ─────────────────────────────────────────────────────────────────
+
+export interface Room {
+    id: string;
+    name: string;
+    slug: string;
+    owner_id: string;
+    created_at: string;
+    member_count?: number;
+}
+
+export interface RoomNote {
+    id: string;
+    title: string;
+    content: string;
+    created_at: string;
+    updated_at: string;
+}
+
+export interface RoomMember {
+    user_id: string;
+    joined_at: string;
+}
+
+export const roomsApi = {
+    list: (userId: string): Promise<Room[]> =>
+        api.get<Room[]>("/rooms/", { headers: { "X-User-Id": userId } }).then((r) => r.data),
+
+    create: (name: string, userId: string): Promise<Room> =>
+        api.post<Room>("/rooms/", { name }, { headers: { "X-User-Id": userId } }).then((r) => r.data),
+
+    get: (slug: string): Promise<Room> =>
+        api.get<Room>(`/rooms/${slug}`).then((r) => r.data),
+
+    join: (slug: string, userId: string): Promise<{ joined: boolean; room: Room }> =>
+        api
+            .post<{ joined: boolean; room: Room }>(`/rooms/${slug}/join`, {}, { headers: { "X-User-Id": userId } })
+            .then((r) => r.data),
+
+    getNotes: (slug: string): Promise<RoomNote[]> =>
+        api.get<RoomNote[]>(`/rooms/${slug}/notes`).then((r) => r.data),
+
+    addNote: (slug: string, noteId: string): Promise<{ added: boolean }> =>
+        api.post<{ added: boolean }>(`/rooms/${slug}/notes`, { note_id: noteId }).then((r) => r.data),
+
+    removeNote: (slug: string, noteId: string): Promise<{ removed: boolean }> =>
+        api.delete<{ removed: boolean }>(`/rooms/${slug}/notes/${noteId}`).then((r) => r.data),
+
+    getMembers: (slug: string): Promise<RoomMember[]> =>
+        api.get<RoomMember[]>(`/rooms/${slug}/members`).then((r) => r.data),
+};

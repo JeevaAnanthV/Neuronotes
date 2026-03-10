@@ -3,18 +3,16 @@
 import ReactFlow, {
     Background,
     Controls,
-    MiniMap,
     type Node as RFNode,
     type Edge as RFEdge,
-    MarkerType,
     useNodesState,
     useEdgesState,
 } from "reactflow";
 import "reactflow/dist/style.css";
 import { useEffect, useState, useCallback, useRef } from "react";
-import { graphApi, tagsApi, type GraphData, type TagWithCount } from "@/lib/api";
+import { graphApi, type GraphData } from "@/lib/api";
 import { useRouter } from "next/navigation";
-import { Search, RefreshCw, RotateCcw, ChevronDown } from "lucide-react";
+import { Search, RefreshCw } from "lucide-react";
 
 interface NodeTooltip {
     nodeId: string;
@@ -24,38 +22,40 @@ interface NodeTooltip {
     y: number;
 }
 
-function buildNodes(data: GraphData, filterTag: string | null): { nodes: RFNode[]; edges: RFEdge[] } {
+// Clean minimal node style — small filled dot, label only on hover
+function buildNodes(data: GraphData, filterTag: string | null, highlightQuery: string): { nodes: RFNode[]; edges: RFEdge[] } {
     const filteredNodes = filterTag
         ? data.nodes.filter((n) => n.tags.includes(filterTag))
         : data.nodes;
 
     const filteredNodeIds = new Set(filteredNodes.map((n) => n.id));
-
     const count = filteredNodes.length;
-    const radius = Math.max(220, count * 55);
+    const radius = Math.max(200, count * 50);
+    const q = highlightQuery.toLowerCase();
 
     const rfNodes: RFNode[] = filteredNodes.map((n, i) => {
         const angle = (2 * Math.PI * i) / count;
+        const isHighlighted = q ? n.title.toLowerCase().includes(q) : false;
+        const dimmed = q && !isHighlighted;
+
         return {
             id: n.id,
             position: {
-                x: 450 + radius * Math.cos(angle),
-                y: 320 + radius * Math.sin(angle),
+                x: 440 + radius * Math.cos(angle),
+                y: 300 + radius * Math.sin(angle),
             },
             data: { label: n.title || "Untitled", tags: n.tags },
             style: {
-                background: "#121212",
-                border: `1px solid ${n.tags.length > 0 ? "rgba(99,102,241,0.45)" : "#2a2a2a"}`,
-                borderRadius: "10px",
-                padding: "10px 14px",
-                color: "#EAEAEA",
-                fontSize: "13px",
-                fontWeight: 500,
-                fontFamily: "Inter, sans-serif",
+                width: 12,
+                height: 12,
+                borderRadius: "50%",
+                background: isHighlighted ? "#6366F1" : dimmed ? "#2A2A2A" : "#383838",
+                border: isHighlighted ? "2px solid #6366F1" : "1.5px solid #2A2A2A",
+                boxShadow: isHighlighted ? "0 0 12px rgba(99,102,241,0.5)" : "none",
+                opacity: dimmed ? 0.3 : 1,
                 cursor: "pointer",
-                maxWidth: "160px",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
-                transition: "box-shadow 120ms ease, border-color 120ms ease",
+                padding: 0,
+                transition: "all 150ms ease",
             },
         };
     });
@@ -66,15 +66,11 @@ function buildNodes(data: GraphData, filterTag: string | null): { nodes: RFNode[
             id: `${e.source}-${e.target}`,
             source: e.source,
             target: e.target,
-            animated: e.similarity > 0.87,
             style: {
-                stroke: `rgba(99, 102, 241, ${Math.min(0.8, e.similarity * 0.9)})`,
-                strokeWidth: Math.max(1, e.similarity * 3),
+                stroke: "rgba(99,102,241,0.25)",
+                strokeWidth: 0.5,
             },
-            markerEnd: { type: MarkerType.ArrowClosed, color: "rgba(99,102,241,0.5)" },
-            label: e.similarity > 0.9 ? `${(e.similarity * 100).toFixed(0)}%` : undefined,
-            labelStyle: { fill: "#A1A1A1", fontSize: "10px" },
-            labelBgStyle: { fill: "#1A1A1A", fillOpacity: 0.8 },
+            markerEnd: undefined,
         }));
 
     return { nodes: rfNodes, edges: rfEdges };
@@ -88,18 +84,15 @@ export function KnowledgeGraph() {
     const [loading, setLoading] = useState(true);
     const [recomputing, setRecomputing] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
-    const [filterTag, setFilterTag] = useState<string | null>(null);
-    const [allTags, setAllTags] = useState<TagWithCount[]>([]);
-    const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
     const [tooltip, setTooltip] = useState<NodeTooltip | null>(null);
-    const dropdownRef = useRef<HTMLDivElement>(null);
+    const searchRef = useRef<HTMLInputElement>(null);
 
     const loadGraph = useCallback(async () => {
         setLoading(true);
         try {
             const data: GraphData = await graphApi.get();
             setGraphData(data);
-            const { nodes: rfNodes, edges: rfEdges } = buildNodes(data, filterTag);
+            const { nodes: rfNodes, edges: rfEdges } = buildNodes(data, null, "");
             setNodes(rfNodes);
             setEdges(rfEdges);
         } catch {
@@ -108,60 +101,17 @@ export function KnowledgeGraph() {
         } finally {
             setLoading(false);
         }
-    }, [filterTag, setNodes, setEdges]);
+    }, [setNodes, setEdges]);
 
-    useEffect(() => {
-        loadGraph();
-        tagsApi.list().then(setAllTags).catch(() => { });
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
-
-    // Refilter when tag changes
-    useEffect(() => {
-        if (!graphData) return;
-        const { nodes: rfNodes, edges: rfEdges } = buildNodes(graphData, filterTag);
-        setNodes(rfNodes);
-        setEdges(rfEdges);
-    }, [filterTag, graphData, setNodes, setEdges]);
+    useEffect(() => { loadGraph(); }, [loadGraph]);
 
     // Search highlighting
     useEffect(() => {
         if (!graphData) return;
-        if (!searchQuery.trim()) {
-            const { nodes: rfNodes, edges: rfEdges } = buildNodes(graphData, filterTag);
-            setNodes(rfNodes);
-            setEdges(rfEdges);
-            return;
-        }
-        const q = searchQuery.toLowerCase();
-        setNodes((nds) =>
-            nds.map((n) => ({
-                ...n,
-                style: {
-                    ...n.style,
-                    opacity: (n.data.label as string).toLowerCase().includes(q) ? 1 : 0.25,
-                    border: (n.data.label as string).toLowerCase().includes(q)
-                        ? "1.5px solid var(--accent-primary)"
-                        : "1px solid #2a2a2a",
-                    boxShadow: (n.data.label as string).toLowerCase().includes(q)
-                        ? "0 0 16px rgba(99,102,241,0.4)"
-                        : "none",
-                },
-            }))
-        );
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [searchQuery, graphData]);
-
-    // Close dropdown on outside click
-    useEffect(() => {
-        const handler = (e: MouseEvent) => {
-            if (dropdownRef.current && !dropdownRef.current.contains(e.target as globalThis.Node)) {
-                setTagDropdownOpen(false);
-            }
-        };
-        document.addEventListener("mousedown", handler);
-        return () => document.removeEventListener("mousedown", handler);
-    }, []);
+        const { nodes: rfNodes, edges: rfEdges } = buildNodes(graphData, null, searchQuery);
+        setNodes(rfNodes);
+        setEdges(rfEdges);
+    }, [searchQuery, graphData, setNodes, setEdges]);
 
     const handleRecompute = async () => {
         setRecomputing(true);
@@ -175,16 +125,10 @@ export function KnowledgeGraph() {
         }
     };
 
-    const handleReset = () => {
-        setSearchQuery("");
-        setFilterTag(null);
-        setTagDropdownOpen(false);
-    };
-
     if (loading) {
         return (
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--text-muted)" }}>
-                <span className="loading-spinner" style={{ marginRight: "10px" }} />
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--text-muted)", gap: "10px" }}>
+                <span className="loading-spinner" />
                 Building knowledge graph…
             </div>
         );
@@ -193,13 +137,13 @@ export function KnowledgeGraph() {
     if (nodes.length === 0) {
         return (
             <div className="empty-state">
-                <GitBranchIcon />
+                <GitBranchSvg />
                 <div className="empty-state-title">No graph yet</div>
                 <p className="empty-state-sub">
                     Create notes and click &quot;Build Graph&quot; to visualise your knowledge network.
                 </p>
                 <button className="btn btn-primary" onClick={handleRecompute} disabled={recomputing}>
-                    {recomputing ? <span className="loading-spinner" /> : null}
+                    {recomputing ? <span className="loading-spinner" /> : <RefreshCw size={13} />}
                     Build Graph
                 </button>
             </div>
@@ -207,35 +151,38 @@ export function KnowledgeGraph() {
     }
 
     return (
-        <div style={{ width: "100%", height: "100%", position: "relative" }}>
-            {/* Controls bar */}
+        <div style={{ width: "100%", height: "100%", position: "relative", background: "var(--bg-primary)" }}>
+            {/* Minimal controls — top-right only */}
             <div style={{
                 position: "absolute",
-                top: 12,
-                left: 12,
-                right: 12,
+                top: 14,
+                right: 14,
                 display: "flex",
-                gap: "8px",
+                gap: "7px",
                 zIndex: 10,
                 alignItems: "center",
             }}>
                 {/* Search */}
-                <div style={{ position: "relative", flex: "0 0 200px" }}>
-                    <Search size={13} style={{ position: "absolute", left: "10px", top: "50%", transform: "translateY(-50%)", color: "var(--text-muted)", pointerEvents: "none" }} />
+                <div style={{ position: "relative" }}>
+                    <Search size={12} style={{
+                        position: "absolute", left: "9px", top: "50%",
+                        transform: "translateY(-50%)", color: "var(--text-muted)", pointerEvents: "none",
+                    }} />
                     <input
+                        ref={searchRef}
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
-                        placeholder="Search nodes…"
+                        placeholder="Filter nodes…"
                         style={{
-                            width: "100%",
                             background: "var(--bg-elevated)",
                             border: "1px solid var(--border)",
                             borderRadius: "var(--radius-md)",
-                            padding: "7px 12px 7px 30px",
+                            padding: "6px 10px 6px 27px",
                             color: "var(--text-primary)",
-                            fontSize: "12.5px",
-                            fontFamily: "Inter, sans-serif",
+                            fontSize: "12px",
+                            fontFamily: "inherit",
                             outline: "none",
+                            width: "170px",
                             boxShadow: "var(--shadow-sm)",
                         }}
                         onFocus={(e) => { e.currentTarget.style.borderColor = "var(--accent-primary)"; }}
@@ -243,105 +190,16 @@ export function KnowledgeGraph() {
                     />
                 </div>
 
-                {/* Tag filter */}
-                <div ref={dropdownRef} style={{ position: "relative" }}>
-                    <button
-                        className="btn btn-ghost btn-sm"
-                        style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "6px",
-                            background: "var(--bg-elevated)",
-                            boxShadow: "var(--shadow-sm)",
-                            color: filterTag ? "var(--accent-primary)" : "var(--text-secondary)",
-                            borderColor: filterTag ? "var(--accent-primary)" : "var(--border)",
-                        }}
-                        onClick={() => setTagDropdownOpen((o) => !o)}
-                    >
-                        {filterTag ? `#${filterTag}` : "Filter by tag"}
-                        <ChevronDown size={12} />
-                    </button>
-                    {tagDropdownOpen && (
-                        <div style={{
-                            position: "absolute",
-                            top: "calc(100% + 4px)",
-                            left: 0,
-                            background: "var(--bg-elevated)",
-                            border: "1px solid var(--border-light)",
-                            borderRadius: "var(--radius-md)",
-                            padding: "4px",
-                            minWidth: "150px",
-                            boxShadow: "var(--shadow-md)",
-                            zIndex: 20,
-                            animation: "fadeIn 0.12s ease",
-                        }}>
-                            <div
-                                onClick={() => { setFilterTag(null); setTagDropdownOpen(false); }}
-                                style={{
-                                    padding: "8px 12px",
-                                    fontSize: "13px",
-                                    color: !filterTag ? "var(--accent-primary)" : "var(--text-secondary)",
-                                    borderRadius: "7px",
-                                    cursor: "pointer",
-                                    background: !filterTag ? "var(--accent-dim)" : "transparent",
-                                }}
-                                onMouseEnter={(e) => { if (filterTag) (e.currentTarget as HTMLElement).style.background = "var(--bg-hover)"; }}
-                                onMouseLeave={(e) => { if (filterTag) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-                            >
-                                All notes
-                            </div>
-                            {allTags.map((tag) => (
-                                <div
-                                    key={tag.id}
-                                    onClick={() => { setFilterTag(tag.name); setTagDropdownOpen(false); }}
-                                    style={{
-                                        padding: "8px 12px",
-                                        fontSize: "13px",
-                                        color: filterTag === tag.name ? "var(--accent-primary)" : "var(--text-secondary)",
-                                        borderRadius: "7px",
-                                        cursor: "pointer",
-                                        background: filterTag === tag.name ? "var(--accent-dim)" : "transparent",
-                                    }}
-                                    onMouseEnter={(e) => { if (filterTag !== tag.name) (e.currentTarget as HTMLElement).style.background = "var(--bg-hover)"; }}
-                                    onMouseLeave={(e) => { if (filterTag !== tag.name) (e.currentTarget as HTMLElement).style.background = "transparent"; }}
-                                >
-                                    #{tag.name}
-                                    <span style={{ fontSize: "10px", color: "var(--text-muted)", marginLeft: "6px" }}>{tag.note_count}</span>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-
-                <div style={{ marginLeft: "auto", display: "flex", gap: "6px" }}>
-                    <button
-                        className="btn btn-ghost btn-sm"
-                        onClick={handleReset}
-                        style={{ background: "var(--bg-elevated)", boxShadow: "var(--shadow-sm)" }}
-                        title="Reset filters"
-                    >
-                        <RotateCcw size={12} />
-                        Reset
-                    </button>
-                    <button
-                        className="btn btn-ghost btn-sm"
-                        onClick={loadGraph}
-                        style={{ background: "var(--bg-elevated)", boxShadow: "var(--shadow-sm)" }}
-                        title="Refresh graph"
-                    >
-                        <RefreshCw size={12} />
-                        Refresh
-                    </button>
-                    <button
-                        className="btn btn-ghost btn-sm"
-                        onClick={handleRecompute}
-                        disabled={recomputing}
-                        style={{ background: "var(--bg-elevated)", boxShadow: "var(--shadow-sm)" }}
-                    >
-                        {recomputing ? <span className="loading-spinner" style={{ width: 12, height: 12 }} /> : <RefreshCw size={12} />}
-                        Rebuild
-                    </button>
-                </div>
+                <button
+                    className="btn btn-ghost btn-sm"
+                    onClick={handleRecompute}
+                    disabled={recomputing}
+                    style={{ background: "var(--bg-elevated)", boxShadow: "var(--shadow-sm)", minHeight: 0, padding: "5px 10px" }}
+                    title="Recompute graph"
+                >
+                    {recomputing ? <span className="loading-spinner" style={{ width: 11, height: 11 }} /> : <RefreshCw size={11} />}
+                    Recompute
+                </button>
             </div>
 
             <ReactFlow
@@ -350,9 +208,11 @@ export function KnowledgeGraph() {
                 onNodesChange={onNodesChange}
                 onEdgesChange={onEdgesChange}
                 fitView
+                fitViewOptions={{ padding: 0.3 }}
                 onNodeClick={(_, node) => router.push(`/notes/${node.id}`)}
                 onNodeMouseEnter={(event, node) => {
-                    const rect = (event.target as HTMLElement).getBoundingClientRect();
+                    const target = event.target as HTMLElement;
+                    const rect = target.getBoundingClientRect();
                     setTooltip({
                         nodeId: node.id,
                         title: node.data.label as string,
@@ -360,19 +220,18 @@ export function KnowledgeGraph() {
                         x: rect.left + rect.width / 2,
                         y: rect.top - 8,
                     });
-                    // Glow effect
                     setNodes((nds) =>
                         nds.map((n) =>
                             n.id === node.id
-                                ? {
-                                    ...n,
-                                    style: {
-                                        ...n.style,
-                                        boxShadow: "0 0 20px rgba(99,102,241,0.5)",
-                                        borderColor: "rgba(99,102,241,0.8)",
-                                    },
-                                }
+                                ? { ...n, style: { ...n.style, background: "#6366F1", boxShadow: "0 0 14px rgba(99,102,241,0.55)", border: "2px solid #6366F1" } }
                                 : n
+                        )
+                    );
+                    setEdges((eds) =>
+                        eds.map((e) =>
+                            e.source === node.id || e.target === node.id
+                                ? { ...e, style: { stroke: "rgba(99,102,241,0.7)", strokeWidth: 1.5 } }
+                                : e
                         )
                     );
                 }}
@@ -385,40 +244,39 @@ export function KnowledgeGraph() {
                                     ...n,
                                     style: {
                                         ...n.style,
-                                        boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
-                                        borderColor: (n.data.tags as string[])?.length > 0
-                                            ? "rgba(99,102,241,0.45)"
-                                            : "#2a2a2a",
+                                        background: "#383838",
+                                        boxShadow: "none",
+                                        border: "1.5px solid #2A2A2A",
                                     },
                                 }
                                 : n
                         )
                     );
+                    setEdges((eds) =>
+                        eds.map((e) =>
+                            e.source === node.id || e.target === node.id
+                                ? { ...e, style: { stroke: "rgba(99,102,241,0.25)", strokeWidth: 0.5 } }
+                                : e
+                        )
+                    );
                 }}
                 proOptions={{ hideAttribution: true }}
+                style={{ background: "var(--bg-primary)" }}
             >
-                <Background color="#2a2a2a" gap={24} />
+                <Background color="#1A1A1A" gap={28} size={1} />
                 <Controls
                     style={{
                         background: "var(--bg-elevated)",
                         border: "1px solid var(--border)",
                         borderRadius: "var(--radius-md)",
                         boxShadow: "var(--shadow-sm)",
-                    }}
-                />
-                <MiniMap
-                    nodeColor="var(--accent-primary)"
-                    maskColor="rgba(10,10,10,0.7)"
-                    style={{
-                        background: "var(--bg-elevated)",
-                        border: "1px solid var(--border)",
-                        borderRadius: "var(--radius-md)",
-                        boxShadow: "var(--shadow-sm)",
+                        bottom: 14,
+                        left: 14,
                     }}
                 />
             </ReactFlow>
 
-            {/* Node tooltip */}
+            {/* Node tooltip — shows on hover */}
             {tooltip && (
                 <div style={{
                     position: "fixed",
@@ -428,23 +286,23 @@ export function KnowledgeGraph() {
                     background: "var(--bg-elevated)",
                     border: "1px solid var(--border-light)",
                     borderRadius: "var(--radius-md)",
-                    padding: "8px 12px",
+                    padding: "7px 11px",
                     boxShadow: "var(--shadow-md)",
                     zIndex: 9999,
                     pointerEvents: "none",
-                    animation: "fadeIn 0.1s ease",
+                    animation: "fadeIn 0.1s var(--ease)",
                     maxWidth: "200px",
                 }}>
-                    <div style={{ fontSize: "12.5px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "3px" }}>
+                    <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--text-primary)", marginBottom: "2px" }}>
                         {tooltip.title}
                     </div>
                     {tooltip.tags.length > 0 && (
-                        <div style={{ fontSize: "11px", color: "var(--accent-primary)" }}>
+                        <div style={{ fontSize: "10.5px", color: "var(--accent-primary)" }}>
                             {tooltip.tags.slice(0, 3).map((t) => `#${t}`).join(" ")}
                         </div>
                     )}
-                    <div style={{ fontSize: "10px", color: "var(--text-muted)", marginTop: "3px" }}>
-                        Click to open note
+                    <div style={{ fontSize: "9.5px", color: "var(--text-muted)", marginTop: "2px" }}>
+                        Click to open
                     </div>
                 </div>
             )}
@@ -452,10 +310,9 @@ export function KnowledgeGraph() {
     );
 }
 
-// Inline SVG icon to avoid import issues
-function GitBranchIcon() {
+function GitBranchSvg() {
     return (
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.3, color: "var(--text-muted)" }}>
+        <svg width="44" height="44" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.2, color: "var(--text-muted)" }}>
             <line x1="6" y1="3" x2="6" y2="15" />
             <circle cx="18" cy="6" r="3" />
             <circle cx="6" cy="18" r="3" />

@@ -167,7 +167,35 @@ begin
 end;
 $$;
 
--- ── 12. Row-Level Security ────────────────────────────────────────────────────
+-- ── 12. Rooms (Collaboration) ────────────────────────────────────────────────
+
+create table if not exists rooms (
+    id         uuid primary key default gen_random_uuid(),
+    name       text not null,
+    slug       text unique not null,
+    owner_id   uuid not null,
+    created_at timestamptz default now()
+);
+
+create index if not exists rooms_owner_idx on rooms(owner_id);
+create index if not exists rooms_slug_idx  on rooms(slug);
+
+create table if not exists room_members (
+    room_id   uuid not null references rooms(id) on delete cascade,
+    user_id   uuid not null,
+    joined_at timestamptz default now(),
+    primary key (room_id, user_id)
+);
+
+create index if not exists room_members_user_idx on room_members(user_id);
+
+create table if not exists room_notes (
+    note_id uuid not null references notes(id) on delete cascade,
+    room_id uuid not null references rooms(id) on delete cascade,
+    primary key (note_id, room_id)
+);
+
+-- ── 13. Row-Level Security ────────────────────────────────────────────────────
 -- The FastAPI backend connects with the service role key which bypasses RLS.
 -- RLS is currently disabled. To enable per-user isolation in a future iteration,
 -- uncomment the lines below and add appropriate policies.

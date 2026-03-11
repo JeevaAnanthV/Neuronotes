@@ -29,6 +29,7 @@ export default function NotePage() {
     const [saving, setSaving] = useState(false);
     const [saved, setSaved] = useState(true);
     const [loading, setLoading] = useState(true);
+    const [loadError, setLoadError] = useState<string | null>(null);
     const [showInsights, setShowInsights] = useState(false);
     const [realtimeToast, setRealtimeToast] = useState(false);
     const [panelOpen, setPanelOpen] = useState(false);
@@ -39,8 +40,9 @@ export default function NotePage() {
         notesApi.get(id).then((n) => {
             setTitle(n.title || "");
             setContent(n.content || "");
-        }).catch(() => {
-            router.push("/");
+        }).catch((err) => {
+            const msg = err?.response?.data?.detail || err?.message || "Failed to load note";
+            setLoadError(msg);
         }).finally(() => setLoading(false));
     }, [id, router]);
 
@@ -182,6 +184,16 @@ export default function NotePage() {
         await notesApi.delete(id);
         router.push("/");
     };
+
+    if (loadError) {
+        return (
+            <div style={{ display: "flex", flex: 1, alignItems: "center", justifyContent: "center", flexDirection: "column", gap: "12px", color: "var(--text-muted)", padding: "40px" }}>
+                <div style={{ color: "var(--text-primary)", fontWeight: 600 }}>Failed to load note</div>
+                <div style={{ fontSize: "13px", color: "var(--accent-warning, #f59e0b)", fontFamily: "monospace", background: "var(--bg-elevated)", padding: "10px 16px", borderRadius: "8px", maxWidth: "600px", wordBreak: "break-all" }}>{loadError}</div>
+                <button className="btn btn-ghost btn-sm" onClick={() => router.push("/")}>Go home</button>
+            </div>
+        );
+    }
 
     if (loading) {
         return (

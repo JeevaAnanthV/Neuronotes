@@ -1,7 +1,8 @@
 """
 AI service — dual-provider:
-  • xAI Grok  → text generation (generate, generate_json, extract_text_from_image)
-  • Gemini    → embeddings (embed_text) + audio transcription (transcribe_audio)
+  • Groq  → text generation (generate, generate_json, extract_text_from_image)
+            + audio transcription via Whisper (transcribe_audio)
+  • Gemini → embeddings only (embed_text)
 
 Public interface is unchanged so all callers require zero modifications.
 """
@@ -9,6 +10,8 @@ import asyncio
 import json
 import logging
 import re
+import tempfile
+import os
 from typing import Any
 
 from openai import AsyncOpenAI, APIError, RateLimitError
@@ -22,35 +25,23 @@ from config import get_settings
 logger = logging.getLogger(__name__)
 settings = get_settings()
 
-# ── Grok client (text generation) ────────────────────────────────────────────
-_grok = AsyncOpenAI(
-    api_key=settings.xai_api_key,
-    base_url="https://api.x.ai/v1",
+# ── Groq client (text generation + audio) ────────────────────────────────────
+_groq = AsyncOpenAI(
+    api_key=settings.groq_api_key,
+    base_url="https://api.groq.com/openai/v1",
 )
 
-# ── Gemini client (embeddings + audio) ───────────────────────────────────────
+# ── Gemini client (embeddings only) ──────────────────────────────────────────
 _gemini = google_genai.Client(api_key=settings.gemini_api_key)
 
 
 # ── Error handlers ────────────────────────────────────────────────────────────
 
-def _is_no_credits(exc: Exception) -> bool:
-    """True when the xAI account has no credits / no permission."""
-    msg = str(exc).lower()
-    return "credits" in msg or "licenses" in msg or "permission" in msg or (
-        isinstance(exc, APIError) and getattr(exc, "status_code", 0) == 403
-    )
-
-
-def _handle_grok_error(exc: Exception) -> None:
-    if _is_no_credits(exc):
-        # Return gracefully — callers will get empty string / empty dict
-        logger.warning("Grok API: no credits — returning empty response. Add credits at https://console.x.ai")
-        return
+def _handle_groq_error(exc: Exception) -> None:
     if isinstance(exc, RateLimitError):
-        raise HTTPException(status_code=429, detail="Grok API rate limit reached.")
+        raise HTTPException(status_code=429, detail="Groq API rate limit reached. Please wait a moment.")
     if isinstance(exc, APIError):
-        raise HTTPException(status_code=502, detail=f"Grok API error: {exc.message}")
+        raise HTTPException(status_code=502, detail=f"Groq API error: {exc.message}")
     raise exc
 
 
@@ -66,28 +57,28 @@ def _handle_gemini_error(exc: Exception) -> None:
     raise exc
 
 
-# ── Text generation — Grok ────────────────────────────────────────────────────
+# ── Text generation — Groq ────────────────────────────────────────────────────
 
 async def generate(prompt: str, system: str | None = None) -> str:
-    """Generate text via Grok."""
+    """Generate text via Groq."""
     messages = []
     if system:
         messages.append({"role": "system", "content": system})
     messages.append({"role": "user", "content": prompt})
     try:
-        resp = await _grok.chat.completions.create(
+        resp = await _groq.chat.completions.create(
             model=settings.chat_model,
             messages=messages,
             temperature=0.7,
         )
         return resp.choices[0].message.content or ""
     except Exception as exc:
-        _handle_grok_error(exc)
+        _handle_groq_error(exc)
         return ""
 
 
 async def generate_json(prompt: str, system: str | None = None) -> Any:
-    """Generate JSON via Grok."""
+    """Generate JSON via Groq."""
     json_system = (system or "") + (
         "\nIMPORTANT: Respond with valid JSON only. No markdown fences, no explanation."
     )
@@ -96,7 +87,7 @@ async def generate_json(prompt: str, system: str | None = None) -> Any:
         {"role": "user", "content": prompt},
     ]
     try:
-        resp = await _grok.chat.completions.create(
+        resp = await _groq.chat.completions.create(
             model=settings.chat_model,
             messages=messages,
             temperature=0.3,
@@ -104,39 +95,67 @@ async def generate_json(prompt: str, system: str | None = None) -> Any:
         )
         raw = resp.choices[0].message.content or "{}"
     except Exception as exc:
-        _handle_grok_error(exc)
+        _handle_groq_error(exc)
         return {}
 
     cleaned = re.sub(r"```(?:json)?\s*([\s\S]*?)```", r"\1", raw).strip()
     try:
         return json.loads(cleaned)
     except (json.JSONDecodeError, ValueError):
-        logger.warning("Grok returned non-JSON: %s", cleaned[:200])
+        logger.warning("Groq returned non-JSON: %s", cleaned[:200])
         return {}
 
 
 async def extract_text_from_image(image_b64: str, mime_type: str = "image/jpeg") -> str:
-    """Extract text from an image via Grok vision."""
+    """Extract text from an image — falls back to Gemini vision since Groq has no vision."""
     try:
-        resp = await _grok.chat.completions.create(
-            model=settings.chat_model,
-            messages=[{
-                "role": "user",
-                "content": [
-                    {"type": "image_url", "image_url": {"url": f"data:{mime_type};base64,{image_b64}"}},
-                    {"type": "text", "text": (
-                        "Extract ALL text from this image accurately. "
-                        "If it is handwriting, transcribe exactly. "
-                        "If it is a whiteboard or diagram, describe the structure then transcribe all text. "
-                        "Return ONLY the extracted text, cleanly formatted."
-                    )},
+        import base64
+        image_data = base64.b64decode(image_b64)
+
+        def _extract():
+            resp = _gemini.models.generate_content(
+                model="gemini-2.0-flash",
+                contents=[
+                    google_types.Part.from_bytes(data=image_data, mime_type=mime_type),
+                    "Extract ALL text from this image accurately. "
+                    "If it is handwriting, transcribe exactly. "
+                    "If it is a whiteboard or diagram, describe the structure then transcribe all text. "
+                    "Return ONLY the extracted text, cleanly formatted.",
                 ],
-            }],
-        )
-        return resp.choices[0].message.content or ""
+            )
+            return resp.text or ""
+
+        return await asyncio.to_thread(_extract)
     except Exception as exc:
-        _handle_grok_error(exc)
+        _handle_gemini_error(exc)
         return ""
+
+
+# ── Audio transcription — Groq Whisper ───────────────────────────────────────
+
+async def transcribe_audio(audio_bytes: bytes, mime_type: str = "audio/webm") -> str:
+    """Transcribe audio via Groq's Whisper (whisper-large-v3-turbo)."""
+    suffix = ".webm" if "webm" in mime_type else ".mp3" if "mp3" in mime_type else ".m4a"
+    tmp_path = None
+    try:
+        with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as f:
+            f.write(audio_bytes)
+            tmp_path = f.name
+
+        with open(tmp_path, "rb") as audio_file:
+            result = await _groq.audio.transcriptions.create(
+                model="whisper-large-v3-turbo",
+                file=audio_file,
+                response_format="text",
+            )
+        return str(result).strip()
+    except Exception as exc:
+        logger.error("Groq Whisper transcription failed: %s", exc)
+        _handle_groq_error(exc)
+        return ""
+    finally:
+        if tmp_path and os.path.exists(tmp_path):
+            os.unlink(tmp_path)
 
 
 # ── Embeddings — Gemini ───────────────────────────────────────────────────────
@@ -159,24 +178,3 @@ async def embed_text(text: str) -> list[float]:
     except Exception as exc:
         _handle_gemini_error(exc)
         return []
-
-
-# ── Audio transcription — Gemini ──────────────────────────────────────────────
-
-async def transcribe_audio(audio_bytes: bytes, mime_type: str = "audio/webm") -> str:
-    """Transcribe audio via Gemini multimodal."""
-    def _transcribe():
-        resp = _gemini.models.generate_content(
-            model=settings.chat_model.replace("grok-4-latest", "gemini-2.0-flash"),
-            contents=[
-                google_types.Part.from_bytes(data=audio_bytes, mime_type=mime_type),
-                "Transcribe this audio accurately. Return only the transcription text, nothing else.",
-            ],
-        )
-        return resp.text or ""
-
-    try:
-        return await asyncio.to_thread(_transcribe)
-    except Exception as exc:
-        _handle_gemini_error(exc)
-        return ""

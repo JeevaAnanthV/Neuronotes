@@ -10,10 +10,10 @@ class Settings(BaseSettings):
     supabase_url: str = ""
     supabase_service_role_key: str = ""
 
-    xai_api_key: str = ""
-    chat_model: str = "grok-4-latest"
+    groq_api_key: str = ""
+    chat_model: str = "llama-3.3-70b-versatile"
 
-    # Gemini — used for embeddings and audio transcription
+    # Gemini — used for embeddings only
     gemini_api_key: str = ""
     embedding_model: str = "gemini-embedding-001"
 

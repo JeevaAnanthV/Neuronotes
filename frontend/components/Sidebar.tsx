@@ -171,10 +171,24 @@ export function Sidebar() {
         <aside className={`sidebar${collapsed ? " collapsed" : ""}`}>
             {/* Header */}
             <div className="sidebar-header">
-                <div className="sidebar-logo">
+                <div
+                    className="sidebar-logo"
+                    onClick={() => router.push("/")}
+                    style={{ cursor: "pointer" }}
+                    title="Go to dashboard"
+                >
                     <Brain size={13} color="white" />
                 </div>
-                {!collapsed && <span className="sidebar-title">NeuroNotes</span>}
+                {!collapsed && (
+                    <span
+                        className="sidebar-title"
+                        onClick={() => router.push("/")}
+                        style={{ cursor: "pointer" }}
+                        title="Go to dashboard"
+                    >
+                        NeuroNotes
+                    </span>
+                )}
                 <button
                     className="sidebar-collapse-btn"
                     onClick={() => setCollapsed((c) => !c)}
@@ -450,10 +464,10 @@ export function Sidebar() {
                 <div style={{ position: "fixed", top: 0, left: 0, bottom: 0, zIndex: 850 }}>
                     <aside className="sidebar mobile-open" style={{ height: "100vh" }}>
                         <div className="sidebar-header">
-                            <div className="sidebar-logo">
+                            <div className="sidebar-logo" onClick={() => { router.push("/"); setMobileOpen(false); }} style={{ cursor: "pointer" }}>
                                 <Brain size={13} color="white" />
                             </div>
-                            <span className="sidebar-title">NeuroNotes</span>
+                            <span className="sidebar-title" onClick={() => { router.push("/"); setMobileOpen(false); }} style={{ cursor: "pointer" }}>NeuroNotes</span>
                             <button className="sidebar-collapse-btn" onClick={() => setMobileOpen(false)}>
                                 <X size={13} />
                             </button>

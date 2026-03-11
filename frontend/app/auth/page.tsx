@@ -84,6 +84,8 @@ export default function AuthPage() {
 
     // Sign Up state
     const [suEmail, setSuEmail] = useState("");
+    const [suPassword, setSuPassword] = useState("");
+    const [suShowPw, setSuShowPw] = useState(false);
     const [suLoading, setSuLoading] = useState(false);
     const [suError, setSuError] = useState<string | null>(null);
     const [suSent, setSuSent] = useState(false);
@@ -113,7 +115,11 @@ export default function AuthPage() {
 
     const handleSignUp = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (!suEmail.trim()) return;
+        if (!suEmail.trim() || !suPassword) return;
+        if (suPassword.length < 6) {
+            setSuError("Password must be at least 6 characters.");
+            return;
+        }
         setSuLoading(true);
         setSuError(null);
         const supabase = getSupabase();
@@ -122,8 +128,7 @@ export default function AuthPage() {
         try {
             const { data, error } = await supabase.auth.signUp({
                 email: suEmail.trim(),
-                // Temporary random password — user sets the real one in /auth/onboarding
-                password: `Tmp-${Math.random().toString(36).slice(2, 10)}-${Date.now()}`,
+                password: suPassword,
                 options: { emailRedirectTo: `${siteUrl}/auth/callback` },
             });
 
@@ -136,6 +141,12 @@ export default function AuthPage() {
             // Detect this: existing user has no new identity row → identities is empty.
             if (data.user && (data.user.identities?.length ?? 0) === 0) {
                 setSuError("An account with this email already exists. Please sign in instead.");
+                return;
+            }
+
+            // If email confirmation is disabled in Supabase (local dev), session is available immediately
+            if (data.session) {
+                window.location.href = "/";
                 return;
             }
 
@@ -344,12 +355,12 @@ export default function AuthPage() {
                                         Check your email
                                     </h2>
                                     <p style={{ fontSize: "13.5px", color: "#6B7280", margin: "0 0 20px", lineHeight: 1.6 }}>
-                                        We sent a verification link to{" "}
+                                        A confirmation link was sent to{" "}
                                         <strong style={{ color: "#A5A5A5" }}>{suEmail}</strong>.
-                                        Click it to complete your registration.
+                                        Click it to verify your account, then sign in with your password.
                                     </p>
                                     <button
-                                        onClick={() => { setSuSent(false); setSuEmail(""); }}
+                                        onClick={() => { setSuSent(false); setSuEmail(""); setSuPassword(""); }}
                                         style={{
                                             background: "transparent",
                                             border: "none",
@@ -369,7 +380,7 @@ export default function AuthPage() {
                                         Create your account
                                     </h2>
                                     <p style={{ fontSize: "13px", color: "#6B7280", margin: "0 0 24px" }}>
-                                        Enter your email to receive a verification link
+                                        Sign up with your email and a password
                                     </p>
                                     <form onSubmit={handleSignUp}>
                                         <div style={{ marginBottom: "16px" }}>
@@ -386,13 +397,47 @@ export default function AuthPage() {
                                                 onBlur={(e) => { e.target.style.borderColor = "#2A2A2A"; }}
                                             />
                                         </div>
+                                        <div style={{ marginBottom: "16px" }}>
+                                            <label style={labelStyle}>Password</label>
+                                            <div style={{ position: "relative" }}>
+                                                <input
+                                                    type={suShowPw ? "text" : "password"}
+                                                    value={suPassword}
+                                                    onChange={(e) => setSuPassword(e.target.value)}
+                                                    placeholder="At least 6 characters"
+                                                    required
+                                                    style={{ ...inputStyle, paddingRight: "42px" }}
+                                                    onFocus={(e) => { e.target.style.borderColor = "#6366F1"; }}
+                                                    onBlur={(e) => { e.target.style.borderColor = "#2A2A2A"; }}
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setSuShowPw(!suShowPw)}
+                                                    style={{
+                                                        position: "absolute",
+                                                        right: "12px",
+                                                        top: "50%",
+                                                        transform: "translateY(-50%)",
+                                                        background: "none",
+                                                        border: "none",
+                                                        color: "#6B7280",
+                                                        cursor: "pointer",
+                                                        padding: "2px",
+                                                        display: "flex",
+                                                        alignItems: "center",
+                                                    }}
+                                                >
+                                                    <EyeIcon open={suShowPw} />
+                                                </button>
+                                            </div>
+                                        </div>
                                         {suError && <div style={errorStyle}>{suError}</div>}
                                         <button
                                             type="submit"
-                                            disabled={suLoading || !suEmail.trim()}
-                                            style={btnStyle(suLoading || !suEmail.trim())}
+                                            disabled={suLoading || !suEmail.trim() || !suPassword}
+                                            style={btnStyle(suLoading || !suEmail.trim() || !suPassword)}
                                         >
-                                            {suLoading ? "Sending..." : "Send Verification Link"}
+                                            {suLoading ? "Creating account..." : "Create Account"}
                                         </button>
                                     </form>
                                 </>

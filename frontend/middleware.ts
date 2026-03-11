@@ -31,11 +31,12 @@ export async function middleware(request: NextRequest) {
 
     const { pathname } = request.nextUrl;
 
-    // Allow auth pages and static files through
+    // Allow auth pages, static files, and backend proxy through
     if (
         pathname.startsWith("/auth") ||
         pathname.startsWith("/_next") ||
         pathname.startsWith("/favicon") ||
+        pathname.startsWith("/api/proxy") ||
         pathname.includes(".")
     ) {
         return supabaseResponse;

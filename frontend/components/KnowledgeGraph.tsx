@@ -40,24 +40,30 @@ function buildNodes(data: GraphData, filterTag: string | null, highlightQuery: s
         const isHighlighted = q ? n.title.toLowerCase().includes(q) : false;
         const dimmed = q && !isHighlighted;
 
+        const label = (n.title || "Untitled").slice(0, 20) + ((n.title || "Untitled").length > 20 ? "…" : "");
         return {
             id: n.id,
             position: {
                 x: 440 + radius * Math.cos(angle),
                 y: 300 + radius * Math.sin(angle),
             },
-            data: { label: n.title || "Untitled", tags: n.tags },
+            data: { label, fullTitle: n.title || "Untitled", tags: n.tags },
             style: {
-                width: 12,
-                height: 12,
-                borderRadius: "50%",
-                background: isHighlighted ? "#6366F1" : dimmed ? "#2A2A2A" : "#383838",
-                border: isHighlighted ? "2px solid #6366F1" : "1.5px solid #2A2A2A",
-                boxShadow: isHighlighted ? "0 0 12px rgba(99,102,241,0.5)" : "none",
-                opacity: dimmed ? 0.3 : 1,
+                background: isHighlighted ? "#6366F1" : dimmed ? "#1E1E2E" : "#312E81",
+                border: isHighlighted ? "2px solid #818CF8" : dimmed ? "1px solid #3A3A5A" : "1px solid #6366F1",
+                borderRadius: "8px",
+                color: isHighlighted ? "#FFFFFF" : dimmed ? "#555580" : "#C7D2FE",
+                fontSize: "11px",
+                fontWeight: isHighlighted ? 600 : 400,
+                padding: "5px 10px",
+                boxShadow: isHighlighted ? "0 0 14px rgba(99,102,241,0.7)" : dimmed ? "none" : "0 2px 8px rgba(99,102,241,0.25)",
+                opacity: dimmed ? 0.4 : 1,
                 cursor: "pointer",
-                padding: 0,
                 transition: "all 150ms ease",
+                minWidth: "80px",
+                maxWidth: "140px",
+                textAlign: "center" as const,
+                lineHeight: "1.2",
             },
         };
     });
@@ -69,8 +75,8 @@ function buildNodes(data: GraphData, filterTag: string | null, highlightQuery: s
             source: e.source,
             target: e.target,
             style: {
-                stroke: "rgba(99,102,241,0.25)",
-                strokeWidth: 0.5,
+                stroke: "rgba(165,180,252,0.5)",
+                strokeWidth: 1.5,
             },
             markerEnd: undefined,
         }));
@@ -246,7 +252,7 @@ export function KnowledgeGraph() {
                     const rect = target.getBoundingClientRect();
                     setTooltip({
                         nodeId: node.id,
-                        title: node.data.label as string,
+                        title: node.data.fullTitle as string,
                         tags: (node.data.tags as string[]) || [],
                         x: rect.left + rect.width / 2,
                         y: rect.top - 8,
@@ -254,14 +260,14 @@ export function KnowledgeGraph() {
                     setNodes((nds) =>
                         nds.map((n) =>
                             n.id === node.id
-                                ? { ...n, style: { ...n.style, background: "#6366F1", boxShadow: "0 0 14px rgba(99,102,241,0.55)", border: "2px solid #6366F1" } }
+                                ? { ...n, style: { ...n.style, background: "#4F46E5", border: "2px solid #818CF8", boxShadow: "0 0 16px rgba(99,102,241,0.65)", color: "#FFFFFF", fontWeight: 600 } }
                                 : n
                         )
                     );
                     setEdges((eds) =>
                         eds.map((e) =>
                             e.source === node.id || e.target === node.id
-                                ? { ...e, style: { stroke: "rgba(99,102,241,0.7)", strokeWidth: 1.5 } }
+                                ? { ...e, style: { stroke: "rgba(129,140,248,0.9)", strokeWidth: 2 } }
                                 : e
                         )
                     );
@@ -275,9 +281,11 @@ export function KnowledgeGraph() {
                                     ...n,
                                     style: {
                                         ...n.style,
-                                        background: "#383838",
-                                        boxShadow: "none",
-                                        border: "1.5px solid #2A2A2A",
+                                        background: "#312E81",
+                                        border: "1px solid #6366F1",
+                                        boxShadow: "0 2px 8px rgba(99,102,241,0.25)",
+                                        color: "#C7D2FE",
+                                        fontWeight: 400,
                                     },
                                 }
                                 : n
@@ -286,7 +294,7 @@ export function KnowledgeGraph() {
                     setEdges((eds) =>
                         eds.map((e) =>
                             e.source === node.id || e.target === node.id
-                                ? { ...e, style: { stroke: "rgba(99,102,241,0.25)", strokeWidth: 0.5 } }
+                                ? { ...e, style: { stroke: "rgba(165,180,252,0.5)", strokeWidth: 1.5 } }
                                 : e
                         )
                     );
@@ -294,7 +302,7 @@ export function KnowledgeGraph() {
                 proOptions={{ hideAttribution: true }}
                 style={{ background: "var(--bg-primary)" }}
             >
-                <Background color="#1A1A1A" gap={28} size={1} />
+                <Background color="#2A2A3A" gap={28} size={1} />
                 <Controls
                     style={{
                         background: "var(--bg-elevated)",

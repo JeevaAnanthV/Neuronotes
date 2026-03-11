@@ -68,7 +68,22 @@ export default function NotePage() {
             setSaving(true);
             setSaved(false);
             try {
-                await notesApi.update(id, { title: newTitle, content: newContent });
+                let finalTitle = newTitle;
+                // Auto-generate title if empty or still "Untitled" and there's real content
+                const titleNeedsGeneration = (!finalTitle.trim() || finalTitle.trim() === "Untitled");
+                const plainContent = newContent.replace(/<[^>]*>/g, "").trim();
+                if (titleNeedsGeneration && plainContent.length > 20) {
+                    try {
+                        const { title: generatedTitle } = await aiApi.structure(plainContent.slice(0, 500));
+                        if (generatedTitle && generatedTitle !== "Untitled") {
+                            finalTitle = generatedTitle;
+                            setTitle(finalTitle);
+                        }
+                    } catch {
+                        // AI unavailable — keep existing title
+                    }
+                }
+                await notesApi.update(id, { title: finalTitle, content: newContent });
                 setSaved(true);
             } catch { }
             finally { setSaving(false); }
@@ -177,6 +192,15 @@ export default function NotePage() {
         setTitle(voiceTitle);
         setContent(voiceContent);
         await save(voiceTitle, voiceContent);
+    };
+
+    const handleInsertTranscript = (transcript: string) => {
+        // Append transcript as a new paragraph to the existing editor content
+        const appended = content
+            ? `${content}<p>${transcript}</p>`
+            : `<p>${transcript}</p>`;
+        setContent(appended);
+        scheduleSave(title, appended);
     };
 
     const handleDelete = async () => {
@@ -311,7 +335,7 @@ export default function NotePage() {
                         >
                             <Save size={15} />
                         </button>
-                        <VoiceRecorder onNoteCreated={handleVoiceNote} />
+                        <VoiceRecorder onNoteCreated={handleVoiceNote} onInsertTranscript={handleInsertTranscript} />
                         <button
                             className="btn-icon"
                             onClick={() => setPanelOpen((o) => !o)}

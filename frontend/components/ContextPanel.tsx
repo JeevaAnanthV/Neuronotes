@@ -166,7 +166,13 @@ export function ContextPanel({ noteId, content, open = false, onTagsGenerated }:
         setLoadingFlash(true);
         setAiError(null);
         try {
-            const { flashcards: cards } = await aiApi.flashcards(content);
+            // Strip HTML tags before sending to AI — plain text gives better flashcards
+            const plainText = content.replace(/<[^>]*>/g, "").trim();
+            if (!plainText || plainText.length < 20) {
+                setAiError("Add more content to the note before generating flashcards.");
+                return;
+            }
+            const { flashcards: cards } = await aiApi.flashcards(plainText);
             setFlashcards(cards);
         } catch (err: unknown) {
             const status = (err as { response?: { status?: number } })?.response?.status;

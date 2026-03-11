@@ -4,7 +4,7 @@ from functools import lru_cache
 
 
 class Settings(BaseSettings):
-    model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(extra="ignore", env_file=".env")
 
     # Supabase (HTTPS REST — replaces direct TCP postgres connection)
     supabase_url: str = ""

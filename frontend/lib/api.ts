@@ -11,10 +11,17 @@ export const api = axios.create({
 
 // Attach the Supabase JWT to every backend request so the backend
 // can identify the user and filter data per-account.
+// getSession() is race-guarded with a 3-second timeout so a slow
+// Supabase auth server never hangs the entire UI.
 api.interceptors.request.use(async (config) => {
     try {
         const supabase = createClient();
-        const { data: { session } } = await supabase.auth.getSession();
+        const sessionPromise = supabase.auth.getSession();
+        const timeoutPromise = new Promise<null>((resolve) =>
+            setTimeout(() => resolve(null), 3000)
+        );
+        const result = await Promise.race([sessionPromise, timeoutPromise]);
+        const session = result && "data" in result ? result.data.session : null;
         if (session?.access_token) {
             config.headers["Authorization"] = `Bearer ${session.access_token}`;
         }

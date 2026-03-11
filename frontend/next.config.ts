@@ -1,13 +1,10 @@
 import type { NextConfig } from "next";
 
-const backendUrl = process.env.BACKEND_URL || "http://localhost:8001";
+const backendUrl = process.env.BACKEND_URL || "http://localhost:3434";
 
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   output: "standalone",
-  env: {
-    NEXT_PUBLIC_API_URL: "/api/proxy",
-  },
   async rewrites() {
     return [
       {

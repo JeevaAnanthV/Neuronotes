@@ -23,13 +23,20 @@ export default function DashboardPage() {
     const [creating, setCreating] = useState(false);
 
     useEffect(() => {
-        Promise.all([
-            notesApi.list().catch(() => [] as NoteListItem[]),
-            aiApi.insights().catch(() => null),
-        ]).then(([n, i]) => {
-            setNotes(n);
-            setInsights(i);
-        }).finally(() => setLoading(false));
+        // Load notes first — this unblocks the spinner immediately.
+        // Insights are slow (Gemini AI) so they load independently without
+        // holding up the page render.
+        notesApi.list()
+            .catch(() => [] as NoteListItem[])
+            .then((n) => {
+                setNotes(n);
+                setLoading(false);
+            });
+
+        // Insights load in the background — page is already visible by the time this resolves.
+        aiApi.insights()
+            .then((i) => setInsights(i))
+            .catch(() => null);
     }, []);
 
     const handleNewNote = async () => {

@@ -13,6 +13,10 @@ class Settings(BaseSettings):
     xai_api_key: str = ""
     chat_model: str = "grok-4-latest"
 
+    # Gemini — used for embeddings and audio transcription
+    gemini_api_key: str = ""
+    embedding_model: str = "gemini-embedding-001"
+
     # Comma-separated extra allowed CORS origins (e.g. production Vercel URL)
     cors_origins_extra: str = ""
     rate_limit: str = "60/minute"

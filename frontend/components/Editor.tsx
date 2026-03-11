@@ -80,7 +80,13 @@ function AIToolbar({ text, position, onApply, onClose }: AIToolbarProps) {
         : { left: position.x, top: position.y };
 
     return (
-        <div ref={ref} className="ai-toolbar" style={mobileStyle}>
+        <div
+            ref={ref}
+            className="ai-toolbar"
+            style={mobileStyle}
+            // Prevent mousedown from blurring the editor and clearing the selection
+            onMouseDown={(e) => e.preventDefault()}
+        >
             {loading ? (
                 <div style={{ padding: "6px 14px", display: "flex", alignItems: "center", gap: "8px" }}>
                     <Loader2 size={13} style={{ animation: "spin 0.8s linear infinite" }} />

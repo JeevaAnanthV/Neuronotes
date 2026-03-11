@@ -1190,6 +1190,13 @@ html, body {
   50% { box-shadow: 0 0 22px rgba(99,102,241,0.4); }
 }
 
+/* ── Skeleton loader utility ─────────────────────────────────────────────────── */
+.skeleton {
+  background: var(--bg-tertiary);
+  animation: skeletonPulse 1.4s ease-in-out infinite;
+  flex-shrink: 0;
+}
+
 /* ── Sidebar note items staggered fade+slide ─────────────────────────────────── */
 .note-item {
   animation: fadeSlideIn 200ms var(--ease) both;

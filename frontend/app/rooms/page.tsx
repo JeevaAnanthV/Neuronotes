@@ -35,13 +35,20 @@ export default function RoomsPage() {
         });
     }, []);
 
+    const [setupRequired, setSetupRequired] = useState(false);
+
     const loadRooms = useCallback(async () => {
         if (!userId) return;
         setLoading(true);
         try {
             const data = await roomsApi.list(userId);
             setRooms(data);
-        } catch {
+            setSetupRequired(false);
+        } catch (err: unknown) {
+            const status = (err as { response?: { status?: number } })?.response?.status;
+            if (status === 503) {
+                setSetupRequired(true);
+            }
             setRooms([]);
         } finally {
             setLoading(false);
@@ -63,8 +70,15 @@ export default function RoomsPage() {
             setCreateModalOpen(false);
             setRoomName("");
             router.push(`/rooms/${room.slug}`);
-        } catch {
-            setCreateError("Failed to create room. Check backend connection.");
+        } catch (err: unknown) {
+            const status = (err as { response?: { status?: number } })?.response?.status;
+            const detail = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail;
+            if (status === 503) {
+                setCreateModalOpen(false);
+                setSetupRequired(true);
+            } else {
+                setCreateError(detail || "Failed to create room. Check backend connection.");
+            }
         } finally {
             setCreating(false);
         }
@@ -101,6 +115,37 @@ export default function RoomsPage() {
 
             <div className="editor-content">
                 <div className="editor-body">
+                    {setupRequired && (
+                        <div style={{
+                            background: "rgba(234,179,8,0.08)",
+                            border: "1px solid rgba(234,179,8,0.3)",
+                            borderRadius: "var(--radius-md)",
+                            padding: "16px 20px",
+                            marginBottom: "20px",
+                            fontSize: "13px",
+                            color: "var(--text-secondary)",
+                            lineHeight: 1.7,
+                        }}>
+                            <strong style={{ color: "#EAB308", display: "block", marginBottom: "6px" }}>
+                                Database setup required
+                            </strong>
+                            The Rooms tables have not been created in your Supabase project yet.
+                            Open your{" "}
+                            <a
+                                href="https://supabase.com/dashboard/project/mcyppfjrftbczgpuwouu/sql/new"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                style={{ color: "var(--accent-primary)", textDecoration: "underline" }}
+                            >
+                                Supabase SQL Editor
+                            </a>
+                            {" "}and run the SQL in{" "}
+                            <code style={{ background: "var(--bg-tertiary)", padding: "1px 5px", borderRadius: "4px", fontSize: "12px" }}>
+                                supabase/schema.sql
+                            </code>
+                            {" "}(sections 12 and 13).
+                        </div>
+                    )}
                     {loading ? (
                         <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "40px 0", color: "var(--text-muted)" }}>
                             <Loader2 size={16} style={{ animation: "spin 0.8s linear infinite" }} />

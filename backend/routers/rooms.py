@@ -10,6 +10,27 @@ from typing import Optional
 
 router = APIRouter(prefix="/rooms", tags=["rooms"])
 
+# Error code Supabase/PostgREST returns when a table doesn't exist
+_TABLE_NOT_FOUND_CODE = "PGRST205"
+
+
+def _check_table_error(e: Exception) -> None:
+    """
+    Raise a clean 503 if the rooms tables haven't been migrated yet,
+    instead of letting a 500 Internal Server Error propagate.
+    """
+    msg = str(e)
+    if _TABLE_NOT_FOUND_CODE in msg or "room" in msg.lower() and "schema cache" in msg.lower():
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Rooms tables are not set up in your Supabase project. "
+                "Run the SQL in supabase/schema.sql against your Supabase SQL Editor "
+                "(https://supabase.com/dashboard/project/mcyppfjrftbczgpuwouu/sql) "
+                "to create the rooms, room_members, and room_notes tables."
+            ),
+        )
+
 
 def _slug_from_name(name: str) -> str:
     """Convert a room name to a URL-safe slug."""
@@ -70,19 +91,33 @@ async def create_room(
     owner_id = _resolve_user_id(x_user_id, authorization)
 
     base_slug = _slug_from_name(name)
-    slug = await asyncio.to_thread(lambda: _ensure_unique_slug(db, base_slug))
+    try:
+        slug = await asyncio.to_thread(lambda: _ensure_unique_slug(db, base_slug))
+    except Exception as e:
+        _check_table_error(e)
+        raise
 
-    result = await asyncio.to_thread(
-        lambda: db.table("rooms").insert({"name": name, "slug": slug, "owner_id": owner_id}).execute()
-    )
+    try:
+        result = await asyncio.to_thread(
+            lambda: db.table("rooms").insert({"name": name, "slug": slug, "owner_id": owner_id}).execute()
+        )
+    except Exception as e:
+        _check_table_error(e)
+        raise HTTPException(status_code=500, detail="Failed to create room.")
+
     if not result.data:
         raise HTTPException(status_code=500, detail="Failed to create room.")
     room = result.data[0]
 
     # Auto-add owner as a member
-    await asyncio.to_thread(
-        lambda: db.table("room_members").insert({"room_id": room["id"], "user_id": owner_id}).execute()
-    )
+    try:
+        await asyncio.to_thread(
+            lambda: db.table("room_members").insert({"room_id": room["id"], "user_id": owner_id}).execute()
+        )
+    except Exception as e:
+        _check_table_error(e)
+        # Non-fatal — room was created, membership insert failed
+        pass
 
     return room
 
@@ -95,24 +130,35 @@ async def list_rooms(
 ):
     """List all rooms the current user belongs to."""
     user_id = _resolve_user_id(x_user_id, authorization)
-    memberships = await asyncio.to_thread(
-        lambda: db.table("room_members").select("room_id").eq("user_id", user_id).execute()
-    )
+    try:
+        memberships = await asyncio.to_thread(
+            lambda: db.table("room_members").select("room_id").eq("user_id", user_id).execute()
+        )
+    except Exception as e:
+        _check_table_error(e)
+        raise
     room_ids = [m["room_id"] for m in (memberships.data or [])]
     if not room_ids:
         return []
 
-    rooms_result = await asyncio.to_thread(
-        lambda: db.table("rooms").select("*").in_("id", room_ids).order("created_at", desc=True).execute()
-    )
+    try:
+        rooms_result = await asyncio.to_thread(
+            lambda: db.table("rooms").select("*").in_("id", room_ids).order("created_at", desc=True).execute()
+        )
+    except Exception as e:
+        _check_table_error(e)
+        raise
     rooms = rooms_result.data or []
 
     # Attach member counts
     for room in rooms:
-        mc = await asyncio.to_thread(
-            lambda r=room: db.table("room_members").select("user_id").eq("room_id", r["id"]).execute()
-        )
-        room["member_count"] = len(mc.data or [])
+        try:
+            mc = await asyncio.to_thread(
+                lambda r=room: db.table("room_members").select("user_id").eq("room_id", r["id"]).execute()
+            )
+            room["member_count"] = len(mc.data or [])
+        except Exception:
+            room["member_count"] = 0
 
     return rooms
 

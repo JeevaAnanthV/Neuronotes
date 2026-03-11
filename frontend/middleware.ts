@@ -25,13 +25,9 @@ export async function middleware(request: NextRequest) {
         }
     );
 
-    // Refresh session — getUser() triggers token refresh internally.
-    // If the refresh token is invalid (400), user is null and we clear cookies.
-    const { data: { user } } = await supabase.auth.getUser();
-
     const { pathname } = request.nextUrl;
 
-    // Allow auth pages, static files, and backend proxy through
+    // Allow auth pages, static files, and backend proxy through without any auth check
     if (
         pathname.startsWith("/auth") ||
         pathname.startsWith("/_next") ||
@@ -42,18 +38,25 @@ export async function middleware(request: NextRequest) {
         return supabaseResponse;
     }
 
+    // Use getSession() — reads from cookie, no network call.
+    // getUser() makes a live Supabase network call on every navigation;
+    // if Supabase is slow or temporarily unavailable it returns null and
+    // causes an incorrect redirect loop. getSession() is local-cookie-only.
+    let session = null;
+    try {
+        const sessionResult = await supabase.auth.getSession();
+        session = sessionResult.data.session;
+    } catch {
+        // If the session check itself throws (network error, etc.), let the
+        // request through. The page-level auth checks will handle identity.
+        return supabaseResponse;
+    }
+
     // Redirect unauthenticated users to /auth
-    if (!user) {
+    if (!session) {
         const url = request.nextUrl.clone();
         url.pathname = "/auth";
-        const redirect = NextResponse.redirect(url);
-        // Clear all Supabase auth cookies so stale tokens don't cause repeated 400s
-        request.cookies.getAll().forEach(({ name }) => {
-            if (name.startsWith("sb-")) {
-                redirect.cookies.delete(name);
-            }
-        });
-        return redirect;
+        return NextResponse.redirect(url);
     }
 
     return supabaseResponse;

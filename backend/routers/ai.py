@@ -644,3 +644,19 @@ async def research_assistant(body: ResearchRequest):
         key_insights=data.get("key_insights", []),
         concepts=data.get("concepts", []),
     )
+
+
+@router.post("/generate-title")
+async def generate_title(body: dict):
+    """Generate a short, descriptive title from note content. Lightweight — title only."""
+    content = body.get("content", "").strip()
+    if not content:
+        return {"title": ""}
+    title = await gemini.generate(
+        content[:600],
+        system=(
+            "Generate a short, descriptive title (max 8 words) for this note content. "
+            "Return ONLY the title text — no quotes, no punctuation at the end, nothing else."
+        ),
+    )
+    return {"title": title.strip().strip('"').strip("'")}

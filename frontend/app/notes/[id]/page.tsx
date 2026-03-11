@@ -37,9 +37,24 @@ export default function NotePage() {
 
     useEffect(() => {
         setLoading(true);
-        notesApi.get(id).then((n) => {
-            setTitle(n.title || "");
-            setContent(n.content || "");
+        notesApi.get(id).then(async (n) => {
+            const loadedTitle = n.title || "";
+            const loadedContent = n.content || "";
+            setTitle(loadedTitle);
+            setContent(loadedContent);
+
+            // Auto-generate title on load if note has content but no real title
+            const titleMissing = !loadedTitle.trim() || loadedTitle.trim() === "Untitled";
+            const plainContent = loadedContent.replace(/<[^>]*>/g, "").trim();
+            if (titleMissing && plainContent.length > 20) {
+                try {
+                    const { title: generated } = await aiApi.generateTitle(plainContent.slice(0, 600));
+                    if (generated && generated !== "Untitled") {
+                        setTitle(generated);
+                        await notesApi.update(id, { title: generated, content: loadedContent });
+                    }
+                } catch { /* AI unavailable — keep Untitled */ }
+            }
         }).catch((err) => {
             const msg = err?.response?.data?.detail || err?.message || "Failed to load note";
             setLoadError(msg);
@@ -74,7 +89,7 @@ export default function NotePage() {
                 const plainContent = newContent.replace(/<[^>]*>/g, "").trim();
                 if (titleNeedsGeneration && plainContent.length > 20) {
                     try {
-                        const { title: generatedTitle } = await aiApi.structure(plainContent.slice(0, 500));
+                        const { title: generatedTitle } = await aiApi.generateTitle(plainContent.slice(0, 600));
                         if (generatedTitle && generatedTitle !== "Untitled") {
                             finalTitle = generatedTitle;
                             setTitle(finalTitle);

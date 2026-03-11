@@ -33,6 +33,11 @@ export async function GET(request: NextRequest) {
 
         const { error } = await supabase.auth.exchangeCodeForSession(code);
 
+        if (error) {
+            console.error("[auth/callback] exchangeCodeForSession error:", error.message, error.status);
+            return NextResponse.redirect(`${siteUrl}/auth?error=${encodeURIComponent(error.message)}`);
+        }
+
         if (!error) {
             // Check whether this user already has a profile row
             const { data: { user } } = await supabase.auth.getUser();

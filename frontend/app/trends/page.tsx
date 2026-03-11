@@ -2,8 +2,8 @@
 export const dynamic = "force-dynamic";
 
 import { useEffect, useState } from "react";
-import { api, type NoteListItem } from "@/lib/api";
-import { TrendingUp, Loader2, GitBranch, Activity, Lightbulb } from "lucide-react";
+import { api } from "@/lib/api";
+import { TrendingUp, Loader2, GitBranch, Activity } from "lucide-react";
 
 interface TrendsData {
     trending_topics: { topic: string; count: number; notes: { id: string; title: string }[] }[];

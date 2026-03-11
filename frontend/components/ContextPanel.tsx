@@ -15,7 +15,15 @@ import {
     Calendar,
     Circle,
     CheckCircle2,
+    Languages,
+    Copy,
+    Check as CheckIcon,
 } from "lucide-react";
+
+const TRANSLATE_LANGUAGES = [
+    "Spanish", "French", "German", "Hindi", "Chinese",
+    "Japanese", "Arabic", "Portuguese", "Russian", "Korean",
+];
 
 interface ActionItem {
     task: string;
@@ -78,6 +86,10 @@ export function ContextPanel({ noteId, content, open = false, onTagsGenerated }:
     const [linkSuggestions, setLinkSuggestions] = useState<NoteListItem[]>([]);
     const [actions, setActions] = useState<ActionItem[]>([]);
     const [doneTasks, setDoneTasks] = useState<Set<string>>(new Set());
+    const [translateLang, setTranslateLang] = useState("Spanish");
+    const [loadingTranslate, setLoadingTranslate] = useState(false);
+    const [translateResult, setTranslateResult] = useState<string | null>(null);
+    const [translateCopied, setTranslateCopied] = useState(false);
     const actionTimerRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
     const lastContentRef = useRef<string>("");
 
@@ -193,6 +205,31 @@ export function ContextPanel({ noteId, content, open = false, onTagsGenerated }:
         } finally { setLoadingExpand(false); }
     };
 
+    const handleTranslate = async () => {
+        const plainText = content.replace(/<[^>]*>/g, "").trim();
+        if (!plainText) return;
+        setLoadingTranslate(true);
+        setTranslateResult(null);
+        setAiError(null);
+        try {
+            const { translated } = await aiApi.translate(plainText, translateLang);
+            setTranslateResult(translated);
+        } catch (err: unknown) {
+            const status = (err as { response?: { status?: number } })?.response?.status;
+            setAiError(status === 429 ? "Rate limit reached — wait a moment." : "AI error — check the backend.");
+        } finally {
+            setLoadingTranslate(false);
+        }
+    };
+
+    const handleTranslateCopy = () => {
+        if (!translateResult) return;
+        navigator.clipboard.writeText(translateResult).then(() => {
+            setTranslateCopied(true);
+            setTimeout(() => setTranslateCopied(false), 1800);
+        });
+    };
+
     const rowStyle: React.CSSProperties = {
         display: "flex",
         alignItems: "flex-start",
@@ -243,6 +280,74 @@ export function ContextPanel({ noteId, content, open = false, onTagsGenerated }:
                         {loadingExpand ? <span className="loading-spinner" /> : <Sparkles size={12} />}
                         Expand Idea
                     </button>
+                    {/* Translate row */}
+                    <div style={{ display: "flex", gap: "5px", marginTop: "2px" }}>
+                        <select
+                            value={translateLang}
+                            onChange={(e) => setTranslateLang(e.target.value)}
+                            style={{
+                                flex: 1,
+                                background: "var(--bg-tertiary)",
+                                border: "1px solid var(--border)",
+                                borderRadius: "var(--radius-sm)",
+                                padding: "4px 6px",
+                                color: "var(--text-primary)",
+                                fontSize: "11.5px",
+                                outline: "none",
+                                fontFamily: "inherit",
+                                cursor: "pointer",
+                            }}
+                        >
+                            {TRANSLATE_LANGUAGES.map((lang) => (
+                                <option key={lang} value={lang}>{lang}</option>
+                            ))}
+                        </select>
+                        <button
+                            className="btn btn-ghost btn-sm"
+                            onClick={handleTranslate}
+                            disabled={loadingTranslate}
+                            style={{ gap: "5px", fontSize: "12px", flexShrink: 0, padding: "4px 9px", minHeight: 0 }}
+                        >
+                            {loadingTranslate ? <span className="loading-spinner" style={{ width: 11, height: 11 }} /> : <Languages size={12} />}
+                            Translate
+                        </button>
+                    </div>
+                    {/* Translation result */}
+                    {translateResult && (
+                        <div style={{
+                            background: "var(--bg-tertiary)",
+                            border: "1px solid var(--border)",
+                            borderRadius: "var(--radius-md)",
+                            padding: "9px 10px",
+                            fontSize: "12px",
+                            color: "var(--text-secondary)",
+                            lineHeight: 1.6,
+                            position: "relative",
+                            marginTop: "2px",
+                            animation: "fadeIn 0.15s var(--ease)",
+                        }}>
+                            <div style={{ whiteSpace: "pre-wrap", marginRight: "24px" }}>{translateResult}</div>
+                            <button
+                                onClick={handleTranslateCopy}
+                                title={translateCopied ? "Copied!" : "Copy translation"}
+                                style={{
+                                    position: "absolute",
+                                    top: "7px",
+                                    right: "7px",
+                                    background: "none",
+                                    border: "none",
+                                    cursor: "pointer",
+                                    color: translateCopied ? "var(--success)" : "var(--text-muted)",
+                                    padding: "2px",
+                                    minHeight: 0,
+                                    display: "flex",
+                                    alignItems: "center",
+                                }}
+                            >
+                                {translateCopied ? <CheckIcon size={12} /> : <Copy size={12} />}
+                            </button>
+                        </div>
+                    )}
                 </div>
             </Section>
 

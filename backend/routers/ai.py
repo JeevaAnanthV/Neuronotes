@@ -611,6 +611,22 @@ async def get_trends(db: Client = Depends(get_db)):
     }
 
 
+@router.post("/translate")
+async def translate_note(body: dict):
+    """Translate note content to a target language using Gemini."""
+    content = body.get("content", "")
+    target_language = body.get("target_language", "Spanish")
+    if not content.strip():
+        return {"translated": ""}
+    prompt = (
+        f"Translate the following text to {target_language}. "
+        f"Preserve the original formatting (headings, lists, etc.) as much as possible. "
+        f"Return ONLY the translated text, nothing else.\n\nTEXT:\n{content}"
+    )
+    translated = await gemini.generate(prompt)
+    return {"translated": translated.strip()}
+
+
 @router.post("/research", response_model=ResearchResponse)
 async def research_assistant(body: ResearchRequest):
     """Summarize an article or research paper and extract key insights."""

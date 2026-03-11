@@ -23,9 +23,12 @@ export default function DashboardPage() {
     const [creating, setCreating] = useState(false);
 
     useEffect(() => {
-        // Load notes first — this unblocks the spinner immediately.
-        // Insights are slow (Gemini AI) so they load independently without
-        // holding up the page render.
+        // Prefetch common routes so navigation feels instant
+        router.prefetch("/graph");
+        router.prefetch("/chat");
+        router.prefetch("/insights");
+
+        // notesApi.list() is cached (30s TTL) — returns immediately on second visit
         notesApi.list()
             .catch(() => [] as NoteListItem[])
             .then((n) => {
@@ -37,7 +40,7 @@ export default function DashboardPage() {
         aiApi.insights()
             .then((i) => setInsights(i))
             .catch(() => null);
-    }, []);
+    }, [router]);
 
     const handleNewNote = async () => {
         if (creating) return;
@@ -64,7 +67,7 @@ export default function DashboardPage() {
     const recentNote = notes[0] ?? null;
 
     return (
-        <div style={{
+        <div className="page-fade-in" style={{
             flex: 1,
             height: "100%",
             overflowY: "auto",

@@ -367,10 +367,7 @@ html, body {
   padding: 7px 10px;
   border-radius: var(--radius-md);
   cursor: pointer;
-  transition: background var(--duration-fast) var(--ease);
-  margin-bottom: 1px;
 }
-.note-item:hover { background: var(--bg-hover); }
 .note-item.active { background: var(--accent-dim); }
 
 .note-item-title {
@@ -550,6 +547,68 @@ html, body {
 .ProseMirror a { color: var(--accent-primary); text-decoration: none; }
 .ProseMirror a:hover { text-decoration: underline; }
 .ProseMirror p { margin: 0 0 6px; }
+
+/* ── Task List (checkboxes) ──────────────────────────────────────────────────── */
+.ProseMirror ul[data-type="taskList"] {
+  list-style: none;
+  padding-left: 4px;
+  margin: 8px 0;
+}
+.ProseMirror ul[data-type="taskList"] li {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  margin: 5px 0;
+  line-height: 1.6;
+}
+.ProseMirror ul[data-type="taskList"] li > label {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  margin-top: 3px;
+  cursor: pointer;
+}
+.ProseMirror ul[data-type="taskList"] li > label > input[type="checkbox"] {
+  appearance: none;
+  -webkit-appearance: none;
+  width: 15px;
+  height: 15px;
+  border: 1.5px solid var(--border-light);
+  border-radius: 4px;
+  background: var(--bg-tertiary);
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease;
+  flex-shrink: 0;
+  position: relative;
+}
+.ProseMirror ul[data-type="taskList"] li > label > input[type="checkbox"]:checked {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+}
+.ProseMirror ul[data-type="taskList"] li > label > input[type="checkbox"]:checked::after {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 1px;
+  width: 5px;
+  height: 9px;
+  border: 2px solid white;
+  border-top: none;
+  border-left: none;
+  transform: rotate(45deg);
+}
+.ProseMirror ul[data-type="taskList"] li > div {
+  flex: 1;
+}
+.ProseMirror ul[data-type="taskList"] li[data-checked="true"] > div {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+/* nested task lists */
+.ProseMirror ul[data-type="taskList"] ul[data-type="taskList"] {
+  padding-left: 20px;
+  margin: 4px 0;
+}
 
 /* AI Ghost text hint */
 .ai-hint {
@@ -1036,11 +1095,6 @@ html, body {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   padding: 18px;
-  transition: border-color var(--duration-fast) var(--ease), box-shadow var(--duration-fast) var(--ease);
-}
-.dashboard-card:hover {
-  border-color: var(--border-light);
-  box-shadow: var(--shadow-sm);
 }
 .dashboard-card-title {
   font-size: 11px;
@@ -1108,8 +1162,20 @@ html, body {
   from { opacity: 0; transform: translateY(-3px); }
   to { opacity: 1; transform: translateY(0); }
 }
+@keyframes fadeSlideIn {
+  from { opacity: 0; transform: translateX(-8px); }
+  to { opacity: 1; transform: translateX(0); }
+}
+@keyframes fadeSlideUp {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
 @keyframes spin {
   to { transform: rotate(360deg); }
+}
+@keyframes skeletonShimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
 }
 @keyframes skeletonPulse {
   0%, 100% { opacity: 0.5; }
@@ -1118,6 +1184,84 @@ html, body {
 @keyframes pulse {
   0%, 100% { opacity: 1; box-shadow: 0 0 0 0 rgba(239,68,68,0.4); }
   50% { opacity: 0.85; box-shadow: 0 0 0 6px rgba(239,68,68,0); }
+}
+@keyframes logoPulse {
+  0%, 100% { box-shadow: 0 0 10px var(--accent-glow); }
+  50% { box-shadow: 0 0 22px rgba(99,102,241,0.4); }
+}
+
+/* ── Sidebar note items staggered fade+slide ─────────────────────────────────── */
+.note-item {
+  animation: fadeSlideIn 200ms var(--ease) both;
+}
+/* Stagger via nth-child (first 10 items) */
+.note-item:nth-child(1) { animation-delay: 0ms; }
+.note-item:nth-child(2) { animation-delay: 25ms; }
+.note-item:nth-child(3) { animation-delay: 50ms; }
+.note-item:nth-child(4) { animation-delay: 75ms; }
+.note-item:nth-child(5) { animation-delay: 100ms; }
+.note-item:nth-child(6) { animation-delay: 125ms; }
+.note-item:nth-child(7) { animation-delay: 150ms; }
+.note-item:nth-child(8) { animation-delay: 175ms; }
+.note-item:nth-child(9) { animation-delay: 200ms; }
+.note-item:nth-child(10) { animation-delay: 220ms; }
+
+/* ── Note item hover lift ────────────────────────────────────────────────────── */
+.note-item:hover {
+  background: var(--bg-hover);
+  transform: translateY(-1px);
+  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+}
+.note-item {
+  transition: background var(--duration-fast) var(--ease),
+              transform var(--duration-fast) var(--ease),
+              box-shadow var(--duration-fast) var(--ease);
+  margin-bottom: 1px;
+}
+
+/* ── Dashboard card hover lift ──────────────────────────────────────────────── */
+.dashboard-card {
+  transition: border-color var(--duration-fast) var(--ease),
+              box-shadow var(--duration-fast) var(--ease),
+              transform var(--duration-fast) var(--ease);
+}
+.dashboard-card:hover {
+  border-color: var(--border-light);
+  box-shadow: var(--shadow-sm);
+  transform: translateY(-2px);
+}
+
+/* ── Button press scale ──────────────────────────────────────────────────────── */
+.btn:active { transform: scale(0.97) !important; }
+.btn-primary:active { transform: scale(0.97) translateY(0) !important; }
+.btn-icon:active { transform: scale(0.93); }
+.nav-item:active { transform: scale(0.97); }
+
+/* ── Page content fade-in ────────────────────────────────────────────────────── */
+.page-fade-in {
+  animation: fadeSlideUp 220ms var(--ease) both;
+}
+
+/* ── Modal/panel slide up + fade ────────────────────────────────────────────── */
+.modal-enter {
+  animation: fadeSlideUp 180ms var(--ease) both;
+}
+
+/* ── Sidebar logo glow on hover ──────────────────────────────────────────────── */
+.sidebar-logo:hover {
+  animation: logoPulse 1s var(--ease) infinite;
+}
+
+/* ── Skeleton shimmer (replaces plain pulse where possible) ──────────────────── */
+.skeleton-shimmer {
+  background: linear-gradient(
+    90deg,
+    var(--bg-tertiary) 25%,
+    var(--bg-elevated) 50%,
+    var(--bg-tertiary) 75%
+  );
+  background-size: 800px 100%;
+  animation: skeletonShimmer 1.4s ease-in-out infinite;
 }
 
 .loading-spinner {

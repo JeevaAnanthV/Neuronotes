@@ -2,9 +2,10 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { useRouter, usePathname } from "next/navigation";
-import { notesApi, type NoteListItem } from "@/lib/api";
+import { notesApi, notesEvents, type NoteListItem } from "@/lib/api";
 import { CommandPalette } from "@/components/CommandPalette";
 import { TemplateSelector, type Template } from "@/components/TemplateSelector";
+import { CalendarWidget } from "@/components/CalendarWidget";
 import { createClient } from "@/lib/supabase";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import {
@@ -111,10 +112,13 @@ export function Sidebar() {
         }
     }, []);
 
+    // Fetch once on mount, then re-fetch only when notes are mutated.
+    // No polling — sidebar reacts to the global nn:notes-changed event emitted
+    // by notesApi.create / update / delete.
     useEffect(() => {
         loadNotes();
-        const interval = setInterval(loadNotes, 10000);
-        return () => clearInterval(interval);
+        const unsub = notesEvents.subscribe(loadNotes);
+        return unsub;
     }, [loadNotes]);
 
     useEffect(() => {
@@ -254,6 +258,15 @@ export function Sidebar() {
                     ))
                 )}
             </div>
+
+            {/* Mini calendar widget */}
+            {!collapsed && (
+                <>
+                    <div className="sidebar-section-divider" />
+                    <div className="sidebar-section-label" style={{ padding: "8px 14px 2px" }}>Calendar</div>
+                    <CalendarWidget notes={notes} />
+                </>
+            )}
 
             {/* Divider */}
             <div className="sidebar-section-divider" />

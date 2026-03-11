@@ -3,6 +3,8 @@
 import { useEditor, EditorContent } from "@tiptap/react";
 import StarterKit from "@tiptap/starter-kit";
 import Placeholder from "@tiptap/extension-placeholder";
+import TaskList from "@tiptap/extension-task-list";
+import TaskItem from "@tiptap/extension-task-item";
 import { useState, useCallback, useRef, useEffect } from "react";
 import { aiApi, api } from "@/lib/api";
 import {
@@ -27,6 +29,7 @@ import {
     MessageSquare,
     Swords,
     Wand2,
+    CheckSquare,
 } from "lucide-react";
 
 // ── AI Selection Toolbar ──────────────────────────────────────────────────────
@@ -116,6 +119,7 @@ const SLASH_GROUPS: SlashGroup[] = [
             { cmd: "code", label: "Code", desc: "Inline code block", icon: Code },
             { cmd: "quote", label: "Quote", desc: "Blockquote", icon: Quote },
             { cmd: "divider", label: "Divider", desc: "Horizontal rule", icon: Minus },
+            { cmd: "todo", label: "Todo List", desc: "Checkbox task list", icon: CheckSquare },
         ],
     },
     {
@@ -441,6 +445,8 @@ export function Editor({ content, onChange, onSlashCommand }: Props) {
         extensions: [
             StarterKit,
             Placeholder.configure({ placeholder: "Start writing… or type / for commands" }),
+            TaskList,
+            TaskItem.configure({ nested: true }),
         ],
         content,
         onUpdate: ({ editor }) => {
@@ -644,6 +650,9 @@ export function Editor({ content, onChange, onSlashCommand }: Props) {
                         return;
                     case "divider":
                         editor.chain().focus().setHorizontalRule().run();
+                        return;
+                    case "todo":
+                        editor.chain().focus().toggleTaskList().run();
                         return;
                     case "image":
                         setShowImageImport(true);

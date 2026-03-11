@@ -1,16 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Sun, Moon } from "lucide-react";
 
 export function ThemeToggle() {
-    const [theme, setTheme] = useState<"dark" | "light">(() => {
-        if (typeof window === "undefined") return "dark";
+    const [mounted, setMounted] = useState(false);
+    const [theme, setTheme] = useState<"dark" | "light">("dark");
+
+    useEffect(() => {
         const saved = localStorage.getItem("nn-theme") as "dark" | "light" | null;
         const initial = saved ?? "dark";
+        setTheme(initial);
         document.documentElement.setAttribute("data-theme", initial);
-        return initial;
-    });
+        setMounted(true);
+    }, []);
 
     const toggle = () => {
         const next = theme === "dark" ? "light" : "dark";
@@ -18,6 +21,13 @@ export function ThemeToggle() {
         document.documentElement.setAttribute("data-theme", next);
         localStorage.setItem("nn-theme", next);
     };
+
+    // Render a fixed-size placeholder until mounted so SSR and client agree
+    if (!mounted) {
+        return (
+            <div style={{ width: 27, height: 27, flexShrink: 0 }} />
+        );
+    }
 
     return (
         <button

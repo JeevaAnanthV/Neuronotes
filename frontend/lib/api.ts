@@ -29,6 +29,53 @@ api.interceptors.request.use(async (config) => {
     return config;
 });
 
+// ── Simple in-memory cache ──────────────────────────────────────────────────────
+// Used to avoid redundant network fetches for the notes list.
+// TTL of 30 seconds — invalidated immediately on any mutation.
+
+interface CacheEntry<T> {
+    data: T;
+    ts: number;
+}
+
+const cache = new Map<string, CacheEntry<unknown>>();
+const CACHE_TTL = 30_000; // 30 seconds
+
+function getCache<T>(key: string): T | null {
+    const entry = cache.get(key) as CacheEntry<T> | undefined;
+    if (!entry) return null;
+    if (Date.now() - entry.ts > CACHE_TTL) {
+        cache.delete(key);
+        return null;
+    }
+    return entry.data;
+}
+
+function setCache<T>(key: string, data: T): void {
+    cache.set(key, { data, ts: Date.now() });
+}
+
+function invalidateCache(key: string): void {
+    cache.delete(key);
+}
+
+// ── Global notes-changed event ──────────────────────────────────────────────────
+// Components subscribe to this to know when to refetch without polling.
+// Emitted whenever a note is created, updated, or deleted.
+
+export const notesEvents = {
+    emit: () => {
+        if (typeof window !== "undefined") {
+            window.dispatchEvent(new CustomEvent("nn:notes-changed"));
+        }
+    },
+    subscribe: (handler: () => void) => {
+        if (typeof window === "undefined") return () => {};
+        window.addEventListener("nn:notes-changed", handler);
+        return () => window.removeEventListener("nn:notes-changed", handler);
+    },
+};
+
 // ── Types ──────────────────────────────────────────────────────────────────────
 
 export interface Tag {
@@ -97,14 +144,36 @@ export interface InsightsData {
 
 // ── Notes API ──────────────────────────────────────────────────────────────────
 
+const NOTES_LIST_KEY = "notes:list";
+
 export const notesApi = {
-    list: () => api.get<NoteListItem[]>("/notes").then((r) => r.data),
+    list: async (): Promise<NoteListItem[]> => {
+        // Return cached data instantly, then stale-while-revalidate is handled
+        // by callers who subscribe to nn:notes-changed events.
+        const cached = getCache<NoteListItem[]>(NOTES_LIST_KEY);
+        if (cached) return cached;
+        const data = await api.get<NoteListItem[]>("/notes").then((r) => r.data);
+        setCache(NOTES_LIST_KEY, data);
+        return data;
+    },
     get: (id: string) => api.get<Note>(`/notes/${id}`).then((r) => r.data),
-    create: (title: string, content: string) =>
-        api.post<Note>("/notes", { title, content }).then((r) => r.data),
-    update: (id: string, data: { title?: string; content?: string }) =>
-        api.put<Note>(`/notes/${id}`, data).then((r) => r.data),
-    delete: (id: string) => api.delete(`/notes/${id}`),
+    create: async (title: string, content: string): Promise<Note> => {
+        const data = await api.post<Note>("/notes", { title, content }).then((r) => r.data);
+        invalidateCache(NOTES_LIST_KEY);
+        notesEvents.emit();
+        return data;
+    },
+    update: async (id: string, data: { title?: string; content?: string }): Promise<Note> => {
+        const result = await api.put<Note>(`/notes/${id}`, data).then((r) => r.data);
+        invalidateCache(NOTES_LIST_KEY);
+        notesEvents.emit();
+        return result;
+    },
+    delete: async (id: string): Promise<void> => {
+        await api.delete(`/notes/${id}`);
+        invalidateCache(NOTES_LIST_KEY);
+        notesEvents.emit();
+    },
     addTag: (noteId: string, tagName: string) =>
         api.post<Note>(`/notes/${noteId}/tags/${tagName}`).then((r) => r.data),
     removeTag: (noteId: string, tagName: string) =>
@@ -162,6 +231,8 @@ export const aiApi = {
         api.get<{ suggestions: NoteListItem[] }>(`/ai/link-suggestions/${noteId}`).then((r) => r.data),
     research: (text: string) =>
         api.post<{ summary: string; key_insights: string[]; concepts: string[] }>("/ai/research", { text }).then((r) => r.data),
+    translate: (content: string, target_language: string) =>
+        api.post<{ translated: string }>("/ai/translate", { content, target_language }).then((r) => r.data),
 };
 
 

@@ -237,12 +237,11 @@ export default function NotePage() {
                 <div className="editor-content">
                     <div className="editor-body" style={{ display: "flex", flexDirection: "column", gap: "14px", paddingTop: "20px" }}>
                         {[85, 65, 95, 50, 75, 40, 80].map((w, i) => (
-                            <div key={i} style={{
+                            <div key={i} className="skeleton-shimmer" style={{
                                 height: i === 0 ? "22px" : "14px",
                                 width: `${w}%`,
                                 borderRadius: "6px",
-                                background: "var(--bg-tertiary)",
-                                animation: `skeletonPulse 1.4s ease-in-out ${i * 0.08}s infinite`,
+                                animationDelay: `${i * 0.08}s`,
                             }} />
                         ))}
                     </div>
@@ -261,7 +260,7 @@ export default function NotePage() {
     const noteIsEmpty = isNoteEmpty(title, content);
 
     return (
-        <div style={{ display: "flex", flex: 1, overflow: "hidden", minHeight: 0, minWidth: 0 }}>
+        <div className="page-fade-in" style={{ display: "flex", flex: 1, overflow: "hidden", minHeight: 0, minWidth: 0 }}>
             <div className="editor-shell">
                 {/* Realtime toast */}
                 {realtimeToast && (

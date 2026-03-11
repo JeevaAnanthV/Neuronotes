@@ -34,7 +34,19 @@ _gemini = google_genai.Client(api_key=settings.gemini_api_key)
 
 # ── Error handlers ────────────────────────────────────────────────────────────
 
+def _is_no_credits(exc: Exception) -> bool:
+    """True when the xAI account has no credits / no permission."""
+    msg = str(exc).lower()
+    return "credits" in msg or "licenses" in msg or "permission" in msg or (
+        isinstance(exc, APIError) and getattr(exc, "status_code", 0) == 403
+    )
+
+
 def _handle_grok_error(exc: Exception) -> None:
+    if _is_no_credits(exc):
+        # Return gracefully — callers will get empty string / empty dict
+        logger.warning("Grok API: no credits — returning empty response. Add credits at https://console.x.ai")
+        return
     if isinstance(exc, RateLimitError):
         raise HTTPException(status_code=429, detail="Grok API rate limit reached.")
     if isinstance(exc, APIError):

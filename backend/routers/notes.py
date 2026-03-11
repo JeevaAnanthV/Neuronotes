@@ -39,13 +39,11 @@ def _normalize_note(raw: dict) -> dict:
 
 
 async def _fetch_note_or_404(db: Client, note_id: uuid.UUID, user_id: str | None = None) -> dict:
-    """Fetch a single note with tags. Raises 404 if not found or not owned by user.
-    Notes with no owner (user_id IS NULL) are accessible to all authenticated users."""
+    """Fetch a single note with tags. Raises 404 if not found or not owned by user."""
     try:
         q = db.table("notes").select(_NOTE_SELECT).eq("id", str(note_id))
         if user_id:
-            # Allow access if note belongs to this user OR note has no owner
-            q = q.or_(f"user_id.eq.{user_id},user_id.is.null")
+            q = q.eq("user_id", user_id)
         result = await asyncio.to_thread(lambda: q.single().execute())
         return _normalize_note(result.data)
     except PostgRESTError as e:
@@ -67,8 +65,7 @@ async def list_notes(request: Request, db: Client = Depends(get_db)):
     user_id = _get_user_id(request)
     q = db.table("notes").select(_NOTE_SELECT).order("updated_at", desc=True)
     if user_id:
-        # Return notes owned by this user OR notes with no owner (legacy/dev notes)
-        q = q.or_(f"user_id.eq.{user_id},user_id.is.null")
+        q = q.eq("user_id", user_id)
     result = await asyncio.to_thread(lambda: q.execute())
     rows = result.data or []
     return [_normalize_note(r) for r in rows]

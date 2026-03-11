@@ -1,10 +1,20 @@
 import type { NextConfig } from "next";
 
+const backendUrl = process.env.BACKEND_URL || process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001";
+
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   output: "standalone",
   env: {
-    NEXT_PUBLIC_API_URL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8001",
+    NEXT_PUBLIC_API_URL: "/api/proxy",
+  },
+  async rewrites() {
+    return [
+      {
+        source: "/api/proxy/:path*",
+        destination: `${backendUrl}/:path*`,
+      },
+    ];
   },
   images: {
     remotePatterns: [

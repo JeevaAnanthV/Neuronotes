@@ -457,7 +457,10 @@ export function Editor({ content, onChange, onSlashCommand }: Props) {
         content,
         onUpdate: ({ editor }) => {
             const html = editor.getHTML();
-            onChange(html);
+            // Defer parent state update to avoid "setState during render" warning.
+            // TipTap fires onUpdate synchronously inside its own render — calling
+            // the parent's onChange directly triggers React's cross-component setState error.
+            setTimeout(() => onChange(html), 0);
 
             clearTimeout(hintTimerRef.current);
             setShowAiHint(false);

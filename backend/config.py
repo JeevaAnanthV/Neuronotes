@@ -1,8 +1,11 @@
 from pydantic_settings import BaseSettings
+from pydantic import ConfigDict
 from functools import lru_cache
 
 
 class Settings(BaseSettings):
+    model_config = ConfigDict(extra="ignore")
+
     # Supabase (HTTPS REST — replaces direct TCP postgres connection)
     supabase_url: str = ""
     supabase_service_role_key: str = ""
@@ -11,13 +14,9 @@ class Settings(BaseSettings):
     embedding_model: str = "gemini-embedding-001"
     chat_model: str = "gemini-2.5-flash"
 
-    # Comma-separated list of allowed origins (overrides defaults via env var)
+    # Comma-separated extra allowed CORS origins (e.g. production Vercel URL)
     cors_origins_extra: str = ""
     rate_limit: str = "60/minute"
-
-    class Config:
-        env_file = ".env"
-        env_file_encoding = "utf-8"
 
     @property
     def cors_origins(self) -> list[str]:
@@ -27,7 +26,7 @@ class Settings(BaseSettings):
             "http://127.0.0.1:2323",
         ]
         if self.cors_origins_extra:
-            extras = [o.strip() for o in self.cors_origins_extra.split(",") if o.strip()]
+            extras = [o.strip().rstrip("/") for o in self.cors_origins_extra.split(",") if o.strip()]
             base.extend(extras)
         return base
 

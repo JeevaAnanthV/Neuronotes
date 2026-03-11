@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useSearchParams } from "next/navigation";
 import { createBrowserClient } from "@supabase/ssr";
 
 type Tab = "signin" | "signup";
@@ -64,6 +65,15 @@ function mapAuthError(msg: string): string {
 
 export default function AuthPage() {
     const [tab, setTab] = useState<Tab>("signin");
+    const searchParams = useSearchParams();
+
+    // Fallback: if Supabase redirected ?code= here instead of /auth/callback, forward it
+    useEffect(() => {
+        const code = searchParams.get("code");
+        if (code) {
+            window.location.href = `/auth/callback?code=${encodeURIComponent(code)}`;
+        }
+    }, [searchParams]);
 
     // Sign In state
     const [siEmail, setSiEmail] = useState("");

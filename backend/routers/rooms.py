@@ -56,7 +56,7 @@ def _resolve_user_id(
     return "anonymous"
 
 
-@router.post("/", status_code=201)
+@router.post("", status_code=201)
 async def create_room(
     body: dict,
     db: Client = Depends(get_db),
@@ -87,7 +87,7 @@ async def create_room(
     return room
 
 
-@router.get("/")
+@router.get("")
 async def list_rooms(
     db: Client = Depends(get_db),
     x_user_id: Optional[str] = Header(default=None),

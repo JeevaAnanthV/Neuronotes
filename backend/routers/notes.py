@@ -60,7 +60,7 @@ async def _embed_and_link(note_id: uuid.UUID, content: str, title: str) -> None:
     await vs.recompute_links_for_note(note_id)
 
 
-@router.get("/", response_model=list[NoteListItem])
+@router.get("", response_model=list[NoteListItem])
 async def list_notes(request: Request, db: Client = Depends(get_db)):
     user_id = _get_user_id(request)
     q = db.table("notes").select(_NOTE_SELECT).order("updated_at", desc=True)
@@ -71,7 +71,7 @@ async def list_notes(request: Request, db: Client = Depends(get_db)):
     return [_normalize_note(r) for r in rows]
 
 
-@router.post("/", response_model=NoteRead, status_code=201)
+@router.post("", response_model=NoteRead, status_code=201)
 async def create_note(
     request: Request,
     body: NoteCreate,

@@ -24,7 +24,7 @@ def _get_user_id(request: Request) -> str | None:
         return None
 
 
-@router.get("/", response_model=list[SearchResult])
+@router.get("", response_model=list[SearchResult])
 async def semantic_search(
     request: Request,
     q: str = Query(..., min_length=1),

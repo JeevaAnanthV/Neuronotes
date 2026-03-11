@@ -91,10 +91,10 @@ export interface InsightsData {
 // ── Notes API ──────────────────────────────────────────────────────────────────
 
 export const notesApi = {
-    list: () => api.get<NoteListItem[]>("/notes/").then((r) => r.data),
+    list: () => api.get<NoteListItem[]>("/notes").then((r) => r.data),
     get: (id: string) => api.get<Note>(`/notes/${id}`).then((r) => r.data),
     create: (title: string, content: string) =>
-        api.post<Note>("/notes/", { title, content }).then((r) => r.data),
+        api.post<Note>("/notes", { title, content }).then((r) => r.data),
     update: (id: string, data: { title?: string; content?: string }) =>
         api.put<Note>(`/notes/${id}`, data).then((r) => r.data),
     delete: (id: string) => api.delete(`/notes/${id}`),
@@ -107,14 +107,14 @@ export const notesApi = {
 // ── Tags API ───────────────────────────────────────────────────────────────────
 
 export const tagsApi = {
-    list: () => api.get<TagWithCount[]>("/tags/").then((r) => r.data),
+    list: () => api.get<TagWithCount[]>("/tags").then((r) => r.data),
 };
 
 // ── Search API ─────────────────────────────────────────────────────────────────
 
 export const searchApi = {
     semantic: (q: string, top_k = 8) =>
-        api.get<SearchResult[]>("/search/", { params: { q, top_k } }).then((r) => r.data),
+        api.get<SearchResult[]>("/search", { params: { q, top_k } }).then((r) => r.data),
 };
 
 // ── AI API ─────────────────────────────────────────────────────────────────────
@@ -161,7 +161,7 @@ export const aiApi = {
 // ── Graph API ──────────────────────────────────────────────────────────────────
 
 export const graphApi = {
-    get: () => api.get<GraphData>("/graph/").then((r) => r.data),
+    get: () => api.get<GraphData>("/graph").then((r) => r.data),
     recompute: (threshold = 0.72) =>
         api.post<{ links_created: number }>("/graph/recompute", null, { params: { threshold } }).then((r) => r.data),
 };
@@ -220,10 +220,10 @@ export interface RoomMember {
 
 export const roomsApi = {
     list: (userId: string): Promise<Room[]> =>
-        api.get<Room[]>("/rooms/", { headers: { "X-User-Id": userId } }).then((r) => r.data),
+        api.get<Room[]>("/rooms", { headers: { "X-User-Id": userId } }).then((r) => r.data),
 
     create: (name: string, userId: string): Promise<Room> =>
-        api.post<Room>("/rooms/", { name }, { headers: { "X-User-Id": userId } }).then((r) => r.data),
+        api.post<Room>("/rooms", { name }, { headers: { "X-User-Id": userId } }).then((r) => r.data),
 
     get: (slug: string): Promise<Room> =>
         api.get<Room>(`/rooms/${slug}`).then((r) => r.data),

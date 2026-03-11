@@ -7,7 +7,7 @@ from schemas import TagWithCount
 router = APIRouter(prefix="/tags", tags=["tags"])
 
 
-@router.get("/", response_model=list[TagWithCount])
+@router.get("", response_model=list[TagWithCount])
 async def list_tags(db: Client = Depends(get_db)):
     """Return all tags with their note counts, sorted by count descending."""
     # Fetch all tags with their associated note_tags rows

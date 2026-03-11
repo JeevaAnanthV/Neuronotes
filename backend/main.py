@@ -41,6 +41,7 @@ app = FastAPI(
     description="AI-Powered Intelligent Knowledge Workspace",
     version="1.0.0",
     lifespan=lifespan,
+    redirect_slashes=False,
 )
 
 app.state.limiter = limiter

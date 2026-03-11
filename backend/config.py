@@ -10,9 +10,8 @@ class Settings(BaseSettings):
     supabase_url: str = ""
     supabase_service_role_key: str = ""
 
-    gemini_api_key: str = ""
-    embedding_model: str = "gemini-embedding-001"
-    chat_model: str = "gemini-2.5-flash"
+    xai_api_key: str = ""
+    chat_model: str = "grok-4-latest"
 
     # Comma-separated extra allowed CORS origins (e.g. production Vercel URL)
     cors_origins_extra: str = ""
